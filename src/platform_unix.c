@@ -1,5 +1,14 @@
 #ifndef _WIN32
 
+/* Expose POSIX (nanosleep, termios, select) and BSD extras (TIOCGWINSZ) when
+ * compiling with -std=c99, which otherwise hides them on glibc. */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+
 #include "platform.h"
 
 #include <errno.h>
