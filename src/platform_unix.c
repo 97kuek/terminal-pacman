@@ -105,6 +105,9 @@ InputKey platform_poll_input(void)
     case 'd':
     case 'D':
         return INPUT_RIGHT;
+    case 'r':
+    case 'R':
+        return INPUT_RESTART;
     case 'p':
     case 'P':
         return INPUT_PAUSE;
@@ -135,4 +138,3 @@ void platform_sleep_ms(int milliseconds)
 }
 
 #endif
-

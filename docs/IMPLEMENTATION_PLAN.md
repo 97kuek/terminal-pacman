@@ -69,6 +69,11 @@
 - ライフ減少と位置リセット
 - クリア、ゲームオーバー、終了状態
 - 一時停止
+- リスタート操作
+- パワーエサ
+- 敵ごとの移動方針
+- ステージ開始前とミス後のカウントダウン
+- ドット収集量に応じた難易度上昇
 
 ## フェーズ 7: 検証
 
@@ -99,6 +104,7 @@ terminal-pacman/
   build.ps1
   docs/
     IMPLEMENTATION_PLAN.md
+    AI_DESIGN.md
     ROADMAP.md
   src/
     main.c
@@ -117,8 +123,9 @@ terminal-pacman/
 - Linux / macOS では GCC または Clang + `make` を想定する。
 - 矢印キー対応は初期実装に含める。
 - 最初のマップはソースコード内に固定で持つ。
+- 敵 AI は小マップに向く BFS ベースで実装する。
 
 ## 次の実装候補
 
 優先度付きの改善案は [ROADMAP.md](ROADMAP.md) にまとめる。
-
+敵 AI の設計判断は [AI_DESIGN.md](AI_DESIGN.md) にまとめる。

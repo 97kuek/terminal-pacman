@@ -7,6 +7,7 @@ typedef enum InputKey {
     INPUT_DOWN,
     INPUT_LEFT,
     INPUT_RIGHT,
+    INPUT_RESTART,
     INPUT_PAUSE,
     INPUT_QUIT
 } InputKey;
@@ -18,4 +19,3 @@ void platform_clear_screen(void);
 void platform_sleep_ms(int milliseconds);
 
 #endif
-
