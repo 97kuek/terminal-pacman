@@ -6,6 +6,10 @@
 
 #include "pathfind.h"
 #include "maze.h"
+#include "qghost.h"
+
+/* One Endless ghost learns the player's habits online across a run. */
+static QGhost g_qghost;
 
 #define TIME_ATTACK_TICKS 1200 /* 120s at 100ms/frame */
 #define POWER_TICKS 80
@@ -988,9 +992,96 @@ static int ghost_speed(const Game *game, const Actor *ghost)
     return interval;
 }
 
+/* --- Online Q-learning ghost (Endless only) ----------------------------- */
+
+static const Direction ACTION_DIR[QGHOST_ACTIONS] = {
+    DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT
+};
+
+/* The learner is ghost 0 while in Endless mode. */
+static int is_learner_ghost(const Game *game, const Actor *ghost)
+{
+    return game->mode == MODE_ENDLESS && ghost == &game->ghosts[0];
+}
+
+static int q_bucket(int d)
+{
+    if (d < -3) {
+        return 0;
+    }
+    if (d < 0) {
+        return 1;
+    }
+    if (d == 0) {
+        return 2;
+    }
+    if (d <= 3) {
+        return 3;
+    }
+    return 4;
+}
+
+/* State = (player offset quadrant/magnitude) x (player's heading). Encoding the
+ * player's direction lets the ghost learn the player's movement habits. */
+static int q_state(const Game *game, const Actor *ghost)
+{
+    int dxb = q_bucket(game->player.pos.x - ghost->pos.x);
+    int dyb = q_bucket(game->player.pos.y - ghost->pos.y);
+
+    return (dxb * 5 + dyb) * 5 + (int)game->player.dir; /* < 125 < QGHOST_STATES */
+}
+
+static void q_valid(const Game *game, Position pos, unsigned char valid[QGHOST_ACTIONS])
+{
+    int a;
+
+    for (a = 0; a < QGHOST_ACTIONS; a++) {
+        Position next = wrap_position(step_position(pos, ACTION_DIR[a]));
+        valid[a] = (unsigned char)(is_wall(game, next) ? 0 : 1);
+    }
+}
+
+static void move_learner_ghost(Game *game, Actor *ghost)
+{
+    unsigned char valid[QGHOST_ACTIONS];
+    unsigned char valid2[QGHOST_ACTIONS];
+    int state = q_state(game, ghost);
+    int action;
+    int old_dist;
+    int new_dist;
+    Direction dir;
+
+    q_valid(game, ghost->pos, valid);
+    action = qghost_select(&g_qghost, state, valid);
+    dir = (action >= 0) ? ACTION_DIR[action] : random_valid_direction(game, ghost);
+
+    old_dist = manhattan(ghost->pos, game->player.pos);
+    ghost->dir = dir;
+    if (dir != DIR_NONE) {
+        ghost->pos = wrap_position(step_position(ghost->pos, dir));
+    }
+    new_dist = manhattan(ghost->pos, game->player.pos);
+
+    if (action >= 0) {
+        float reward = (float)(old_dist - new_dist); /* reward closing in */
+
+        if (actors_overlap(ghost->pos, game->player.pos)) {
+            reward += 5.0f;
+        }
+        q_valid(game, ghost->pos, valid2);
+        qghost_update(&g_qghost, state, action, reward,
+                      q_state(game, ghost), valid2);
+    }
+}
+
 static void move_ghost(Game *game, Actor *ghost)
 {
     Direction dir;
+
+    if (game->power_ticks == 0 && is_learner_ghost(game, ghost)) {
+        move_learner_ghost(game, ghost);
+        return;
+    }
 
     if (game->power_ticks > 0) {
         dir = choose_frightened_direction(game, ghost);
@@ -1023,6 +1114,10 @@ static void start_new_game(Game *game)
     game->time_left = (game->mode == MODE_TIMEATTACK) ? TIME_ATTACK_TICKS : 0;
     game->lives = (game->mode == MODE_CLASSIC) ? 3 : 1; /* endless = roguelite */
     game->high_score = game->high_scores[game->mode];
+
+    if (game->mode == MODE_ENDLESS) {
+        qghost_init(&g_qghost, game->maze_seed | 1u); /* fresh learner per run */
+    }
 
     if (game->mode == MODE_CLASSIC) {
         load_level(game, game->start_level);

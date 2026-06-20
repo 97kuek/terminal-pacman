@@ -45,10 +45,7 @@
 - CLI オプション（`--level` / `--difficulty` / `--speed` / `--no-sound` / `--mono`）
 - 純粋ロジックの単体テストと GitHub Actions CI（Windows / Linux / macOS）
 - モード制（Classic / Endless / Time Attack）、モード別ハイスコア、迷路ジェネレータの C 移植（`src/maze.*`）
-
-## 進行中
-
-- モード制の P2: エンドレスのオンライン Q 学習ゴースト（プレイヤーの癖に適応）。設計は [MODES_DESIGN.md](MODES_DESIGN.md)。
+- エンドレスのオンライン Q 学習ゴースト（`src/qghost.*`、プレイヤーの癖に適応）
 
 ## 優先度 A: 次に入れたい機能
 

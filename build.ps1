@@ -8,6 +8,7 @@ $sources = @(
     "src/render.c",
     "src/pathfind.c",
     "src/maze.c",
+    "src/qghost.c",
     "src/platform_win.c"
 )
 

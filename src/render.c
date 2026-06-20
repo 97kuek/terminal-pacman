@@ -135,6 +135,9 @@ static char ghost_glyph(const Game *game, int x, int y, const char **color)
         } else if (game_ghosts_are_frightened(game)) {
             *color = C_FRIGHT;
             glyph = 'g';
+        } else if (game->mode == MODE_ENDLESS && i == 0) {
+            *color = C_FRUIT; /* the learning ghost stands out in Endless */
+            glyph = 'G';
         } else {
             *color = C_GHOST;
             glyph = 'G';
@@ -325,11 +328,11 @@ static void render_footer(const Game *game, int left_pad)
 
 /* Big ASCII banner so the title reads large in a roomy terminal. */
 static const char *MENU_BANNER[5] = {
-    " ____   _    ____   __  __    _    _   _ ",
-    "|  _ \\ / \\  / ___| |  \\/  |  / \\  | \\ | |",
-    "| |_) / _ \\| |     | |\\/| | / _ \\ |  \\| |",
-    "|  __/ ___ \\ |___  | |  | |/ ___ \\| |\\  |",
-    "|_|  /_/   \\_\\____| |_|  |_/_/   \\_\\_| \\_|"
+    " ____      _      ____         __  __     _     _   _ ",
+    "|  _ \\    / \\    / ___|       |  \\/  |   / \\   | \\ | |",
+    "| |_) |  / _ \\  | |     _____ | |\\/| |  / _ \\  |  \\| |",
+    "|  __/  / ___ \\ | |___        | |  | | / ___ \\ | |\\  |",
+    "|_|    /_/   \\_\\ \\____|       |_|  |_|/_/   \\_\\|_| \\_|"
 };
 
 /* Horizontal 3-stop gradient (blue -> purple -> pink), like the gradient
