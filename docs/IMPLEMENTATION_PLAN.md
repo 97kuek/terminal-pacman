@@ -2,30 +2,30 @@
 
 ## Phase 1: Repository Foundation
 
-- Add project documentation.
-- Add cross-platform design notes.
-- Add license and agent instructions.
-- Initialize Git repository.
-- Create GitHub repository once authentication is available.
+- Done: Add project documentation.
+- Done: Add cross-platform design notes.
+- Done: Add license and agent instructions.
+- Done: Initialize Git repository.
+- Done: Push to existing GitHub repository.
 
 ## Phase 2: Build Skeleton
 
-- Create `src/` layout.
-- Add a small C build path that works on Windows, Linux, and macOS.
-- Prefer a simple `Makefile` for Unix-like systems.
-- Add a Windows build script, likely `build.ps1`, for MSVC or MinGW.
-- Keep compiler flags strict enough to catch mistakes.
+- Done: Create `src/` layout.
+- Done: Add a small C build path for Windows, Linux, and macOS.
+- Done: Add `Makefile` for Unix-like systems and compatible Make environments.
+- Done: Add `build.ps1` for Windows with MinGW-w64 GCC.
+- Done: Keep compiler flags strict enough to catch mistakes.
 
 ## Phase 3: Terminal Abstraction
 
-Create a small platform layer for:
+Done: Create a small platform layer for:
 
 - Non-blocking input.
 - Terminal setup and teardown.
 - Screen clearing or cursor repositioning.
 - Sleeping by milliseconds.
 
-Planned files:
+Files:
 
 - `src/platform.h`
 - `src/platform_win.c`
@@ -33,7 +33,7 @@ Planned files:
 
 ## Phase 4: Core Game Model
 
-Represent the game with simple C structs:
+Done: Represent the game with simple C structs:
 
 - Tile map.
 - Player position and direction.
@@ -42,25 +42,25 @@ Represent the game with simple C structs:
 - Lives.
 - Game state.
 
-Planned files:
+Files:
 
 - `src/game.h`
 - `src/game.c`
 
 ## Phase 5: Rendering
 
-Render the current game state as ASCII.
+Done: Render the current game state as ASCII.
 
 The renderer should be dumb: it reads the game state and prints a frame. Game rules should stay out of rendering code.
 
-Planned files:
+Files:
 
 - `src/render.h`
 - `src/render.c`
 
 ## Phase 6: Gameplay Loop
 
-Implement:
+Done: Implement:
 
 - Input handling.
 - Movement and collision against walls.
@@ -74,13 +74,13 @@ Implement:
 
 Manual checks:
 
-- Build on Windows.
+- Done: Build on Windows with MinGW-w64 GCC.
 - Build on Linux or WSL.
 - Build on macOS if available.
-- Confirm terminal mode is restored after normal quit and interrupt paths where practical.
-- Confirm player cannot move through walls.
-- Confirm all pellets can be collected.
-- Confirm ghost collision reduces lives.
+- Partially done: Terminal mode is restored on normal quit and handled SIGINT/SIGTERM paths.
+- Pending manual runtime check: Confirm player cannot move through walls.
+- Pending manual runtime check: Confirm all pellets can be collected.
+- Pending manual runtime check: Confirm ghost collision reduces lives.
 
 Automated tests are optional for the first version, but pure game-rule functions should be kept testable so tests can be added later.
 
@@ -107,7 +107,13 @@ terminal-pacman/
 
 ## Open Decisions
 
-- Exact compiler support matrix: MSVC, MinGW, Clang, GCC.
-- Whether to include arrow-key support in the first implementation or treat it as a follow-up.
-- Whether the first map is hard-coded in source or loaded from a plain text file.
+- Compiler support matrix: MinGW-w64 GCC is verified on Windows. GCC/Clang via `make` are intended for Linux/macOS.
+- Arrow-key support is included in the first implementation.
+- The first map is hard-coded in source.
 
+## Follow-Up Candidates
+
+- Add automated tests for pure game-state logic.
+- Add optional map loading from text files.
+- Add configurable tick speed and ghost speed.
+- Add smarter ghost movement after the random baseline is stable.
