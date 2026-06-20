@@ -1,26 +1,27 @@
-# Agent Instructions
+# エージェント向け指示
 
-This repository contains a portable C terminal game.
+このリポジトリは、C 言語で実装したクロスプラットフォームのターミナルゲームです。
 
-## Development Priorities
+## 開発方針
 
-- Keep the first version simple, portable, and playable.
-- Prefer standard C and small platform-specific adapters over third-party libraries.
-- Keep Windows, Linux, and macOS behavior in sync.
-- Use ASCII rendering unless the specification changes.
-- Avoid unrelated refactors while implementing gameplay.
+- まずはシンプルで、移植しやすく、実際に遊べる状態を保つ。
+- 外部ライブラリに頼る前に、標準 C と小さな OS 別アダプタで解決できるか検討する。
+- Windows / Linux / macOS の挙動をできるだけそろえる。
+- 仕様が変わるまでは ASCII 表示を維持する。
+- ゲームプレイと無関係なリファクタリングは避ける。
 
-## Expected Workflow
+## 作業手順
 
-- Read `SPEC.md` before changing gameplay behavior.
-- Read `docs/IMPLEMENTATION_PLAN.md` before adding new modules.
-- Keep platform-specific code isolated behind `src/platform.h`.
-- Keep game rules independent from terminal rendering where practical.
-- Update documentation when behavior or build commands change.
+- ゲーム仕様を変える前に `SPEC.md` を読む。
+- 新しいモジュールを追加する前に `docs/IMPLEMENTATION_PLAN.md` を読む。
+- ゲーム性を変える機能は `docs/ROADMAP.md` の優先度と整合させる。
+- OS 依存コードは `src/platform.h` の下に閉じ込める。
+- ゲームルールは、できるだけ端末描画から独立させる。
+- 挙動やビルド手順を変えたらドキュメントも更新する。
 
-## Build And Test Notes
+## ビルドと検証
 
-- Do not assume one operating system only.
-- Prefer commands that work in the current shell.
-- If adding tests later, keep them focused on pure game-state logic.
+- 1 つの OS だけを前提にしない。
+- 現在のシェルで動くコマンドを優先する。
+- テストを追加する場合は、まず純粋なゲーム状態ロジックを対象にする。
 

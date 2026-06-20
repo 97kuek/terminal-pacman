@@ -1,99 +1,105 @@
-# Implementation Plan
+# 実装計画
 
-## Phase 1: Repository Foundation
+## フェーズ 1: リポジトリ基盤
 
-- Done: Add project documentation.
-- Done: Add cross-platform design notes.
-- Done: Add license and agent instructions.
-- Done: Initialize Git repository.
-- Done: Push to existing GitHub repository.
+- 完了: プロジェクトドキュメントを追加する。
+- 完了: クロスプラットフォーム方針を整理する。
+- 完了: ライセンスとエージェント向け指示を追加する。
+- 完了: Git リポジトリを初期化する。
+- 完了: 既存の GitHub リポジトリへ push する。
 
-## Phase 2: Build Skeleton
+## フェーズ 2: ビルド基盤
 
-- Done: Create `src/` layout.
-- Done: Add a small C build path for Windows, Linux, and macOS.
-- Done: Add `Makefile` for Unix-like systems and compatible Make environments.
-- Done: Add `build.ps1` for Windows with MinGW-w64 GCC.
-- Done: Keep compiler flags strict enough to catch mistakes.
+- 完了: `src/` 構成を作成する。
+- 完了: Windows / Linux / macOS 向けの小さな C ビルド手順を追加する。
+- 完了: Unix 系環境向けに `Makefile` を追加する。
+- 完了: Windows 向けに MinGW-w64 GCC 用の `build.ps1` を追加する。
+- 完了: 警告を拾いやすいコンパイルオプションを設定する。
 
-## Phase 3: Terminal Abstraction
+## フェーズ 3: 端末平台レイヤー
 
-Done: Create a small platform layer for:
+完了: 以下の処理を平台レイヤーとして分離した。
 
-- Non-blocking input.
-- Terminal setup and teardown.
-- Screen clearing or cursor repositioning.
-- Sleeping by milliseconds.
+- ノンブロッキング入力
+- 端末モードの初期化と復元
+- 画面クリア
+- ミリ秒単位の待機
 
-Files:
+対象ファイル:
 
 - `src/platform.h`
 - `src/platform_win.c`
 - `src/platform_unix.c`
 
-## Phase 4: Core Game Model
+## フェーズ 4: ゲームモデル
 
-Done: Represent the game with simple C structs:
+完了: 以下の状態を C の構造体で表現した。
 
-- Tile map.
-- Player position and direction.
-- Ghost positions and directions.
-- Score.
-- Lives.
-- Game state.
+- タイルマップ
+- プレイヤーの位置と向き
+- 敵の位置と向き
+- スコア
+- ライフ
+- ゲーム状態
 
-Files:
+対象ファイル:
 
 - `src/game.h`
 - `src/game.c`
 
-## Phase 5: Rendering
+## フェーズ 5: 描画
 
-Done: Render the current game state as ASCII.
+完了: 現在のゲーム状態を ASCII で描画する。
 
-The renderer should be dumb: it reads the game state and prints a frame. Game rules should stay out of rendering code.
+描画処理はゲームルールを持たず、ゲーム状態を読んで画面へ出力するだけにしている。
 
-Files:
+対象ファイル:
 
 - `src/render.h`
 - `src/render.c`
 
-## Phase 6: Gameplay Loop
+## フェーズ 6: ゲームループ
 
-Done: Implement:
+完了: 以下を実装した。
 
-- Input handling.
-- Movement and collision against walls.
-- Pellet collection.
-- Random ghost movement.
-- Life loss and reset.
-- Win and game-over states.
-- Pause and quit.
+- 入力処理
+- 壁との衝突を考慮した移動
+- ドット取得
+- ランダムな敵移動
+- ライフ減少と位置リセット
+- クリア、ゲームオーバー、終了状態
+- 一時停止
 
-## Phase 7: Verification
+## フェーズ 7: 検証
 
-Manual checks:
+確認済み:
 
-- Done: Build on Windows with MinGW-w64 GCC.
-- Build on Linux or WSL.
-- Build on macOS if available.
-- Partially done: Terminal mode is restored on normal quit and handled SIGINT/SIGTERM paths.
-- Pending manual runtime check: Confirm player cannot move through walls.
-- Pending manual runtime check: Confirm all pellets can be collected.
-- Pending manual runtime check: Confirm ghost collision reduces lives.
+- Windows + MinGW-w64 GCC でビルドできる。
+- 通常終了時に端末終了処理を通る。
+- `SIGINT` / `SIGTERM` 時も通常終了ルートへ寄せる。
 
-Automated tests are optional for the first version, but pure game-rule functions should be kept testable so tests can be added later.
+未確認または今後確認したい項目:
 
-## Initial File Layout
+- Linux でのビルド
+- macOS でのビルド
+- 実機プレイでの壁抜けなし確認
+- すべてのドットを収集できることの確認
+- 敵接触時にライフが減ることの確認
+
+## 現在のファイル構成
 
 ```text
 terminal-pacman/
   AGENTS.md
+  CONTRIBUTING.md
   LICENSE
+  Makefile
   README.md
   SPEC.md
+  build.ps1
   docs/
     IMPLEMENTATION_PLAN.md
+    ROADMAP.md
   src/
     main.c
     game.c
@@ -105,15 +111,14 @@ terminal-pacman/
     platform_unix.c
 ```
 
-## Open Decisions
+## 決定済み事項
 
-- Compiler support matrix: MinGW-w64 GCC is verified on Windows. GCC/Clang via `make` are intended for Linux/macOS.
-- Arrow-key support is included in the first implementation.
-- The first map is hard-coded in source.
+- Windows では MinGW-w64 GCC でのビルドを確認済み。
+- Linux / macOS では GCC または Clang + `make` を想定する。
+- 矢印キー対応は初期実装に含める。
+- 最初のマップはソースコード内に固定で持つ。
 
-## Follow-Up Candidates
+## 次の実装候補
 
-- Add automated tests for pure game-state logic.
-- Add optional map loading from text files.
-- Add configurable tick speed and ghost speed.
-- Add smarter ghost movement after the random baseline is stable.
+優先度付きの改善案は [ROADMAP.md](ROADMAP.md) にまとめる。
+

@@ -1,88 +1,97 @@
-# Specification
+# 仕様書
 
-## Goal
+## 目的
 
-Implement a Pac-Man-like terminal game in C that runs on Windows, Linux, and macOS.
+Windows / Linux / macOS のターミナル上で動作する、C 言語製のパックマン風ゲームを実装する。
 
-The initial version prioritizes portability, simple controls, readable source code, and a complete playable loop over visual complexity.
+初期版では、見た目の豪華さよりも次の点を優先する。
 
-## Platform Support
+- 追加ライブラリなしで動くこと
+- 操作できる完成したゲームループがあること
+- ソースコードが読みやすいこと
+- OS ごとの差分が小さく分離されていること
+
+## 対応環境
 
 - Windows
 - Linux
 - macOS
 
-The game should avoid third-party libraries in the first version. Platform-specific terminal handling is allowed behind a small abstraction layer.
+初期版では外部ライブラリを使わない。端末入力や画面制御に必要な OS 別処理は、小さな平台レイヤーに閉じ込める。
 
-## Display
+## 表示
 
-The first version uses ASCII-only rendering.
+初期版は ASCII 文字のみで描画する。
 
-| Entity | Character |
+| 要素 | 文字 |
 | --- | --- |
-| Wall | `#` |
-| Pellet | `.` |
-| Empty tile | space |
-| Player | `C` |
-| Ghost | `G` |
+| 壁 | `#` |
+| ドット | `.` |
+| 空白 | 半角スペース |
+| プレイヤー | `C` |
+| 敵 | `G` |
 
-The game renders in a terminal using a fixed-size map. The screen includes the map and a compact status line with score, lives, and state.
+画面には固定サイズのマップと、スコア・ライフ・残りドット数・状態を表示する。
 
-## Controls
+## 操作
 
-| Key | Action |
+| キー | 操作 |
 | --- | --- |
-| `W` / Up arrow | Move up |
-| `A` / Left arrow | Move left |
-| `S` / Down arrow | Move down |
-| `D` / Right arrow | Move right |
-| `P` | Pause / resume |
-| `Q` | Quit |
+| `W` / 上矢印 | 上へ移動 |
+| `A` / 左矢印 | 左へ移動 |
+| `S` / 下矢印 | 下へ移動 |
+| `D` / 右矢印 | 右へ移動 |
+| `P` | 一時停止 / 再開 |
+| `Q` | 終了 |
 
-Letter controls are required. Arrow keys are preferred if they can be supported cleanly across platforms.
+`WASD` 操作は必須。矢印キー操作も初期実装に含める。
 
-## Gameplay
+## ゲームルール
 
-- The player starts with 3 lives.
-- Pellets increase the score when collected.
-- Clearing all pellets wins the game.
-- Touching a ghost costs one life and resets the player and ghosts to their spawn positions.
-- Reaching 0 lives ends the game.
-- Ghosts move randomly in the first version.
-- Ghosts cannot pass through walls.
-- The player cannot pass through walls.
+- プレイヤーはライフ 3 で開始する。
+- ドットを食べるとスコアが増える。
+- すべてのドットを食べるとクリア。
+- 敵に触れるとライフが 1 減り、プレイヤーと敵が初期位置に戻る。
+- ライフが 0 になるとゲームオーバー。
+- 初期版の敵はランダムに移動する。
+- 敵は壁を通過できない。
+- プレイヤーは壁を通過できない。
 
-## Game Loop
+## ゲームループ
 
-The game uses a fixed-timestep loop:
+固定間隔のループで進行する。
 
-1. Poll input without blocking.
-2. Update player direction.
-3. Move the player.
-4. Move ghosts on their own interval.
-5. Resolve collisions.
-6. Render the frame.
-7. Sleep until the next tick.
+1. 入力をノンブロッキングで取得する。
+2. プレイヤーの向きを更新する。
+3. プレイヤーを移動する。
+4. 敵を一定間隔で移動する。
+5. 衝突を判定する。
+6. 画面を描画する。
+7. 次の tick まで待機する。
 
-## Portability Requirements
+## 平台レイヤー
 
-Terminal and input behavior should be isolated behind platform-specific functions:
+端末依存の処理は `src/platform.h` の API に隠す。
 
-- Initialize terminal mode.
-- Restore terminal mode before exit.
-- Poll for key input without blocking.
-- Clear/redraw screen.
-- Sleep for a small number of milliseconds.
+- 端末モードの初期化
+- 端末モードの復元
+- キー入力のノンブロッキング取得
+- 画面クリア
+- ミリ秒単位の待機
 
-Windows can use console APIs or `_kbhit` / `_getch`. Unix-like systems can use `termios`, `select`, and `usleep` or `nanosleep`.
+Windows では `_kbhit` / `_getch` と Win32 Console API を使う。Linux / macOS では `termios`, `select`, `nanosleep` を使う。
 
-## Non-Goals For First Version
+## 初期版でやらないこと
 
-- Unicode graphics
-- Sound
-- Menus beyond a simple start/end screen
-- Configurable maps
-- Save files
-- Advanced ghost AI
-- Networking
+- Unicode 表示
+- サウンド
+- 複雑なメニュー
+- マップファイル読み込み
+- セーブデータ
+- 高度な敵 AI
+- ネットワーク機能
+
+## 次に追加したい仕様
+
+ゲーム性向上の追加仕様は [docs/ROADMAP.md](docs/ROADMAP.md) で管理する。
 
