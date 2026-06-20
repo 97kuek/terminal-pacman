@@ -11,7 +11,7 @@ else
 	SOURCES += src/platform_unix.c
 endif
 
-.PHONY: all clean run
+.PHONY: all clean run test
 
 all: $(TARGET)
 
@@ -24,6 +24,9 @@ $(BUILD_DIR):
 run: $(TARGET)
 	$(TARGET)
 
+test: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_game.c src/game.c src/pathfind.c -o $(BUILD_DIR)/test
+	$(BUILD_DIR)/test
+
 clean:
 	rm -rf $(BUILD_DIR)
-

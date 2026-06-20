@@ -22,6 +22,17 @@ make
 ./build/terminal-pacman
 ```
 
+テスト（純粋ロジック + A*）:
+
+```sh
+make test                          # Linux / macOS
+powershell -File build_tests.ps1   # Windows
+```
+
+CI（`.github/workflows/ci.yml`）が push / PR ごとに Windows / Linux / macOS でビルドとテストを実行する。
+
+起動オプション: `--level N` / `--difficulty easy|normal|hard` / `--speed MS` / `--no-sound` / `--mono` / `--help`。`--level` か `--difficulty` を渡すと起動メニューを省略。
+
 - コンパイルは常に `-std=c99 -Wall -Wextra -pedantic` で**警告ゼロ**を保つ（`build.ps1` / `Makefile` 両方）。
 - **再ビルド前に実行中の `terminal-pacman.exe` を必ず終了する**。起動したままだと Windows で exe がロックされ、リンク時に `Permission denied` になる（`Get-Process terminal-pacman | Stop-Process -Force`）。
 - ハイスコアはカレントディレクトリの `terminal-pacman.score` に保存される（`.gitignore` 済み）。
@@ -43,8 +54,11 @@ make
 | `src/platform.h` | 端末/OS API の境界（入力・VT初期化・一括描画・端末サイズ・サウンド・スリープ） |
 | `src/platform_win.c` | Windows 実装（`_kbhit`/`_getch`、VT 有効化、`WriteConsoleA`、別スレッド `Beep`） |
 | `src/platform_unix.c` | Unix 実装（`termios`/`select`、ANSI、`write`、端末ベル） |
-| `levels/stage*.txt` | ステージ定義（読み込み優先、失敗時は `game.c` の内蔵配列にフォールバック） |
-| `tools/gen_levels.py` | 迷路ジェネレータ（連結性検証つき）。`levels/*.txt` と内蔵配列を生成 |
+| `levels/stage*.txt` | ステージ定義（読み込み優先、失敗時は `game.c` の内蔵配列にフォールバック）。左右端の開口がワープトンネル |
+| `tools/gen_levels.py` | 迷路ジェネレータ（連結性検証＋トンネル開口つき）。`levels/*.txt` と内蔵配列を生成 |
+| `tests/test_game.c` | 単体テスト（A* と純粋ロジック）。`platform_play` をスタブして game.c + pathfind.c をリンク |
+| `build_tests.ps1` / `Makefile (test)` | テストのビルド・実行 |
+| `.github/workflows/ci.yml` | Windows / Linux / macOS の CI |
 
 ## ゲームの主要要素（現状）
 
@@ -53,7 +67,10 @@ make
 - 散開 / 追跡ウェーブ（`SCATTER_TICKS` / `CHASE_TICKS`）。終盤は追跡型が加速（Cruise Elroy）。
 - 連続捕食ボーナス（200→400→800→1600）、ボーナスフルーツ `F`、スコアポップアップ。
 - **スタシス・パルス（本作独自）**: ペレットでチャージし、満タンで `Space` を押すと全敵を一定時間凍結。
-- 効果音: 外部ライブラリ非依存（Windows は別スレッド `Beep`、Unix は端末ベル）。
+- ターン先行入力、左右ワープトンネル、ミス時の死亡演出。
+- 難易度（Easy/Normal/Hard、`game.c` の `DIFFICULTY` テーブル）で敵速度・ウェーブ長・チャージ量を切替。起動メニューまたは CLI で選択。
+- ステージクリアボーナス（残ライフ依存）。
+- 効果音: 外部ライブラリ非依存（Windows は別スレッド `Beep`、Unix は端末ベル）。`--no-sound` / `--mono` で無効化可。
 
 設計判断の詳細は [docs/AI_DESIGN.md](docs/AI_DESIGN.md)、仕様は [SPEC.md](SPEC.md)、改善優先度は [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -74,7 +91,8 @@ python tools/gen_levels.py          # levels/*.txt と tools/builtin_levels.inc 
 
 ## 調整しやすい定数
 
-- 難易度・テンポ・能力: `src/game.c` 冒頭（`POWER_TICKS`, `SCATTER_TICKS`, `CHASE_TICKS`, `CLYDE_RANGE`, `CHARGE_MAX`, `STASIS_TICKS`, `FRUIT_*`, `GHOST_COMBO_MAX`）。
+- 難易度別の調整: `src/game.c` の `DIFFICULTY[]` テーブル（敵速度差・ウェーブ長・チャージ量・ラベル）。
+- テンポ・能力: `src/game.c` 冒頭（`POWER_TICKS`, `CLYDE_RANGE`, `STASIS_TICKS`, `DEATH_TICKS`, `CLEAR_BONUS_PER_LIFE`, `FRUIT_*`, `GHOST_COMBO_MAX`）。
 - フレーム間隔: `src/main.c` の `FRAME_MS`。
 - 効果音の音程: `src/platform_win.c` の `platform_play`。
 - 配色: `src/render.c` の `C_*` マクロ（256色 SGR）。

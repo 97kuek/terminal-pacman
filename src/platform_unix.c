@@ -128,9 +128,19 @@ InputKey platform_poll_input(void)
     }
 }
 
+static int g_sound_enabled = 1;
+
+void platform_set_sound_enabled(int enabled)
+{
+    g_sound_enabled = enabled ? 1 : 0;
+}
+
 void platform_play(SoundId sound)
 {
     (void)sound;
+    if (!g_sound_enabled) {
+        return;
+    }
     fputc('\a', stdout);
     fflush(stdout);
 }

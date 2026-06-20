@@ -19,10 +19,18 @@ typedef enum GameState {
     GAME_RUNNING = 0,
     GAME_READY,
     GAME_PAUSED,
+    GAME_DYING,
     GAME_WON,
     GAME_OVER,
-    GAME_QUIT
+    GAME_QUIT,
+    GAME_MENU
 } GameState;
+
+typedef enum Difficulty {
+    DIFF_EASY = 0,
+    DIFF_NORMAL,
+    DIFF_HARD
+} Difficulty;
 
 typedef enum GhostBehavior {
     GHOST_RANDOM = 0,
@@ -45,8 +53,9 @@ typedef struct Position {
 typedef struct Actor {
     Position pos;
     Position spawn;
-    Position scatter; /* home corner used in AI_SCATTER mode */
+    Position scatter;     /* home corner used in AI_SCATTER mode */
     Direction dir;
+    Direction desired_dir;/* buffered turn for the player (taken when possible) */
     GhostBehavior behavior;
 } Actor;
 
@@ -78,10 +87,17 @@ typedef struct Game {
     int fruit_ticks;      /* >0 while bonus fruit is on the board */
     int fruit_value;      /* points for eating the current fruit */
     int fruit_spawns_left;/* remaining fruit spawns this stage */
+    int dying_ticks;      /* >0 while the death animation plays */
+    int difficulty;       /* Difficulty: tunes ghost speed, waves, charge */
+    int charge_max;       /* pellets needed to fill the pulse (by difficulty) */
+    int start_level;      /* first stage to load (CLI override) */
+    int menu_index;       /* highlighted difficulty on the start menu */
     GameState state;
 } Game;
 
 void game_init(Game *game);
+void game_configure(Game *game, int difficulty, int start_level);
+void game_show_menu(Game *game);
 void game_handle_input(Game *game, InputKey input);
 void game_update(Game *game);
 int game_is_finished(const Game *game);
@@ -92,5 +108,6 @@ int game_charge_percent(const Game *game);
 int game_charge_is_ready(const Game *game);
 
 const char *game_state_label(GameState state);
+const char *game_difficulty_label(int difficulty);
 
 #endif
