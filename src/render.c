@@ -302,17 +302,26 @@ static void render_footer(const Game *game, int left_pad)
     buf_put(C_RESET "\x1b[K");
 }
 
+/* Big ASCII banner so the title reads large in a roomy terminal. */
+static const char *MENU_BANNER[5] = {
+    " ____   _    ____   __  __    _    _   _ ",
+    "|  _ \\ / \\  / ___| |  \\/  |  / \\  | \\ | |",
+    "| |_) / _ \\| |     | |\\/| | / _ \\ |  \\| |",
+    "|  __/ ___ \\ |___  | |  | |/ ___ \\| |\\  |",
+    "|_|  /_/   \\_\\____| |_|  |_/_/   \\_\\_| \\_|"
+};
+
 static void render_menu(const Game *game, int cols, int rows)
 {
-    const int menu_w = 52;
-    const char *names[3] = {"Easy", "Normal", "Hard"};
-    const char *descs[3] = {
+    static const char *names[3] = {"Easy", "Normal", "Hard"};
+    static const char *descs[3] = {
         "relaxed ghosts, pulse charges fast",
         "the standard hunt",
         "fast, relentless ghosts"
     };
-    int pad = (cols - menu_w) / 2;
-    int top = (rows - 12) / 2;
+    int banner_w = (int)strlen(MENU_BANNER[0]);
+    int pad = (cols - banner_w) / 2;
+    int top = (rows - 16) / 2;
     int i;
 
     if (pad < 0) {
@@ -328,33 +337,36 @@ static void render_menu(const Game *game, int cols, int rows)
         buf_put("\x1b[K\r\n");
     }
 
+    /* Only the very first line is padded explicitly; every later line is
+     * padded by the preceding line_break(). Padding both would double the
+     * indent and shove the menu off to the right. */
     buf_spaces(pad);
-    buf_put(C_TITLE "   T E R M I N A L   P A C - M A N");
+    for (i = 0; i < 5; i++) {
+        buf_put(C_TITLE);
+        buf_put(MENU_BANNER[i]);
+        line_break(pad);
+    }
     line_break(pad);
-    line_break(pad);
-    buf_spaces(pad);
-    buf_put(C_LABEL "   Select difficulty:");
+
+    buf_put(C_LABEL "Select difficulty:");
     line_break(pad);
     line_break(pad);
 
     for (i = DIFF_EASY; i <= DIFF_HARD; i++) {
-        buf_spaces(pad);
         if (i == game->menu_index) {
-            buf_putf(C_GOOD "   > %-8s" C_LABEL "%s", names[i], descs[i]);
+            buf_putf(C_GOOD "  > %-7s " C_VALUE "%s", names[i], descs[i]);
         } else {
-            buf_putf(C_DIM "     %-8s%s", names[i], descs[i]);
+            buf_putf(C_DIM "    %-7s %s", names[i], descs[i]);
         }
         line_break(pad);
     }
 
     line_break(pad);
-    buf_spaces(pad);
-    buf_put(C_LABEL "   W/S or arrows to choose,  Space to start,  Q to quit");
+    buf_put(C_LABEL "W/S or arrows to choose,   Space to start,   Q to quit");
     line_break(pad);
     if (game->high_score > 0) {
         line_break(pad);
-        buf_spaces(pad);
-        buf_putf(C_LABEL "   High score: " C_VALUE "%d", game->high_score);
+        buf_putf(C_LABEL "High score: " C_VALUE "%d", game->high_score);
         line_break(pad);
     }
 
