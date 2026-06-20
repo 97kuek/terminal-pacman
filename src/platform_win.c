@@ -122,12 +122,23 @@ InputKey platform_poll_input(void)
     }
 }
 
+static int g_sound_enabled = 1;
+
+void platform_set_sound_enabled(int enabled)
+{
+    g_sound_enabled = enabled ? 1 : 0;
+}
+
 void platform_play(SoundId sound)
 {
     BeepRequest *request;
     HANDLE thread;
     DWORD frequency;
     DWORD duration_ms;
+
+    if (!g_sound_enabled) {
+        return;
+    }
 
     switch (sound) {
     case SND_PELLET:

@@ -14,16 +14,42 @@
 #define POPUP_TICKS 14
 #define FRUIT_TICKS 90
 #define FRUIT_SPAWNS 2
-#define SCATTER_TICKS 45     /* short breather: ghosts scatter to corners */
-#define CHASE_TICKS 220      /* long pressure: ghosts hunt the player */
 #define CLYDE_RANGE 8        /* shy ghost backs off inside this distance */
-#define CHARGE_MAX 40        /* pellets needed to fill the stasis-pulse meter */
 #define CHARGE_PER_POWER 6   /* bonus charge from a power pellet */
 #define STASIS_TICKS 14      /* how long a pulse freezes the ghosts */
+#define DEATH_TICKS 16       /* length of the death animation */
+#define CLEAR_BONUS_PER_LIFE 200 /* stage-clear bonus per remaining life */
 #define SCORE_FILE "terminal-pacman.score"
 #define LEVEL_COUNT 3
 
 static const int FRUIT_VALUES[LEVEL_COUNT] = {100, 300, 500};
+
+/* Per-difficulty tuning. interval_delta is added to the base ghost tempo
+ * (higher = slower ghosts); chase/scatter set the wave lengths; charge_max
+ * sets how many pellets fill the stasis pulse. */
+typedef struct DifficultySettings {
+    int interval_delta;
+    int chase_ticks;
+    int scatter_ticks;
+    int charge_max;
+    const char *label;
+} DifficultySettings;
+
+static const DifficultySettings DIFFICULTY[3] = {
+    { +1, 170, 60, 28, "Easy" },
+    {  0, 220, 45, 40, "Normal" },
+    { -1, 300, 30, 52, "Hard" }
+};
+
+static const DifficultySettings *diff_of(const Game *game)
+{
+    int d = game->difficulty;
+
+    if (d < DIFF_EASY || d > DIFF_HARD) {
+        d = DIFF_NORMAL;
+    }
+    return &DIFFICULTY[d];
+}
 
 static const char *LEVEL_FILES[LEVEL_COUNT] = {
     "levels/stage1.txt",
@@ -48,7 +74,7 @@ static const char *BUILTIN_LEVELS[LEVEL_COUNT][MAP_HEIGHT] = {
         "#.#.#.#.#.#.#.###.###.###.###.#.#.###.###.###",
         "#.....#.#.........###.###.###.#.#.###.###.###",
         "#.#.#.#.#.#.#.###.###G###.###.#.#.###.###.###",
-        "#..........................G................#",
+        "...........................G.................",
         "#.#.#.#.#.###.###G###.#.#.###.###.###.#.#.###",
         "#.#.#.....###.###.###.G...###.###.....#.#.###",
         "#.#.#.#.#.###.###.###.#.#.###.###.###.#.#.###",
@@ -72,7 +98,7 @@ static const char *BUILTIN_LEVELS[LEVEL_COUNT][MAP_HEIGHT] = {
         "#.##.##.##.##.....#.......##.##.##.##.##.##.#",
         "#.##.##.##.##.##..#.##G##.##.##.##.##.##.##.#",
         "#..........................G................#",
-        "#.##.##.##.##.##.G#..#.##.##..#.##..#..#.##.#",
+        "..##.##.##.##.##.G#..#.##.##..#.##..#..#.##..",
         "#.##....##.##.##..#..#.##.##....##..#..#.##.#",
         "#.##.##.##.##.##..#..#G##.##..#.##..#..#.##.#",
         "#...........................................#",
@@ -95,7 +121,7 @@ static const char *BUILTIN_LEVELS[LEVEL_COUNT][MAP_HEIGHT] = {
         "#...........................................#",
         "#.............###.....G...........###.###.###",
         "#.###.#.#.###.###.#.#.#.#.#.#.#.#.###.###.###",
-        "#................G.........G................#",
+        ".................G.........G.................",
         "#.###.....###.#.#.#.#.###.....#.#.###.....###",
         "#.###.#.#.###.#.#.#.#G###.###.#.#.###.#.#.###",
         "#...........................................#",
@@ -157,6 +183,18 @@ static Position step_position(Position pos, Direction dir)
 static int is_inside(Position pos)
 {
     return pos.x >= 0 && pos.x < MAP_WIDTH && pos.y >= 0 && pos.y < MAP_HEIGHT;
+}
+
+/* Wrap horizontally so warp tunnels (open cells on the left/right border)
+ * connect. Non-tunnel border cells are walls, so wrapping there stays blocked. */
+static Position wrap_position(Position pos)
+{
+    if (pos.x < 0) {
+        pos.x = MAP_WIDTH - 1;
+    } else if (pos.x >= MAP_WIDTH) {
+        pos.x = 0;
+    }
+    return pos;
 }
 
 static int is_wall(const Game *game, Position pos)
@@ -221,6 +259,7 @@ static void reset_actors(Game *game)
 
     game->player.pos = game->player.spawn;
     game->player.dir = DIR_NONE;
+    game->player.desired_dir = DIR_NONE;
 
     game->stasis_ticks = 0;
 
@@ -235,8 +274,8 @@ static void reset_actors(Game *game)
 static void add_charge(Game *game, int amount)
 {
     game->charge += amount;
-    if (game->charge > CHARGE_MAX) {
-        game->charge = CHARGE_MAX;
+    if (game->charge > game->charge_max) {
+        game->charge = game->charge_max;
     }
 }
 
@@ -348,6 +387,7 @@ static int load_level_file(Game *game, int level_index)
 }
 
 static Position find_fruit_home(const Game *game);
+static void set_popup(Game *game, Position pos, int value);
 
 static void load_level(Game *game, int level_index)
 {
@@ -360,7 +400,7 @@ static void load_level(Game *game, int level_index)
     game->power_ticks = 0;
     game->tick = 0;
     game->ai_mode = AI_SCATTER;
-    game->ai_timer = SCATTER_TICKS;
+    game->ai_timer = diff_of(game)->scatter_ticks;
     game->ghost_combo = 0;
     game->popup_ticks = 0;
     game->fruit_ticks = 0;
@@ -374,6 +414,12 @@ static void load_level(Game *game, int level_index)
 
 static void advance_or_win(Game *game)
 {
+    int bonus = game->lives * CLEAR_BONUS_PER_LIFE;
+
+    if (bonus > 0) {
+        game->score += bonus;
+        set_popup(game, game->player.pos, bonus);
+    }
     update_high_score(game);
     platform_play(SND_CLEAR);
 
@@ -498,11 +544,19 @@ static void collect_pellet(Game *game)
     }
 }
 
-static void lose_life(Game *game)
+/* Start the death animation; the actual life loss happens when it ends. */
+static void begin_dying(Game *game)
+{
+    game->power_ticks = 0;
+    game->stasis_ticks = 0;
+    game->dying_ticks = DEATH_TICKS;
+    game->state = GAME_DYING;
+    platform_play(SND_DEATH);
+}
+
+static void finish_dying(Game *game)
 {
     game->lives--;
-    game->power_ticks = 0;
-    platform_play(SND_DEATH);
     update_high_score(game);
 
     if (game->lives <= 0) {
@@ -536,7 +590,7 @@ static void resolve_collisions(Game *game)
             update_high_score(game);
             reset_ghost(&game->ghosts[i]);
         } else {
-            lose_life(game);
+            begin_dying(game);
             return;
         }
     }
@@ -560,15 +614,25 @@ static Direction input_to_direction(InputKey input)
 
 static void move_player(Game *game)
 {
+    Actor *player = &game->player;
     Position next;
 
-    if (game->player.dir == DIR_NONE) {
+    /* Buffered turn: if a queued direction is now possible, adopt it. This
+     * lets the player line up a turn slightly before reaching the junction. */
+    if (player->desired_dir != DIR_NONE) {
+        next = wrap_position(step_position(player->pos, player->desired_dir));
+        if (!is_wall(game, next)) {
+            player->dir = player->desired_dir;
+        }
+    }
+
+    if (player->dir == DIR_NONE) {
         return;
     }
 
-    next = step_position(game->player.pos, game->player.dir);
+    next = wrap_position(step_position(game->player.pos, player->dir));
     if (!is_wall(game, next)) {
-        game->player.pos = next;
+        player->pos = next;
     }
 }
 
@@ -827,8 +891,11 @@ static Position chase_target(const Game *game, const Actor *ghost)
 
 static int ghost_speed(const Game *game, const Actor *ghost)
 {
-    int interval = game_ghost_move_interval(game);
+    int interval = game_ghost_move_interval(game) + diff_of(game)->interval_delta;
 
+    if (interval < 1) {
+        interval = 1;
+    }
     if (game->power_ticks > 0) {
         return interval + 1; /* sluggish while edible */
     }
@@ -861,8 +928,19 @@ static void move_ghost(Game *game, Actor *ghost)
 
     ghost->dir = dir;
     if (dir != DIR_NONE) {
-        ghost->pos = step_position(ghost->pos, dir);
+        ghost->pos = wrap_position(step_position(ghost->pos, dir));
     }
+}
+
+/* Reset score/lives/charge for a fresh run and load the starting stage. Keeps
+ * the already-chosen difficulty, start level, and loaded high score. */
+static void start_new_game(Game *game)
+{
+    game->score = 0;
+    game->lives = 3;
+    game->charge = 0;
+    game->charge_max = diff_of(game)->charge_max;
+    load_level(game, game->start_level);
 }
 
 void game_init(Game *game)
@@ -871,12 +949,39 @@ void game_init(Game *game)
 
     memset(game, 0, sizeof(*game));
 
-    game->score = 0;
     game->high_score = high_score;
-    game->lives = 3;
     game->level_count = LEVEL_COUNT;
+    game->difficulty = DIFF_NORMAL;
+    game->menu_index = DIFF_NORMAL;
+    game->start_level = 0;
 
-    load_level(game, 0);
+    start_new_game(game);
+}
+
+void game_configure(Game *game, int difficulty, int start_level)
+{
+    if (difficulty < DIFF_EASY) {
+        difficulty = DIFF_EASY;
+    }
+    if (difficulty > DIFF_HARD) {
+        difficulty = DIFF_HARD;
+    }
+    if (start_level < 0) {
+        start_level = 0;
+    }
+    if (start_level >= LEVEL_COUNT) {
+        start_level = LEVEL_COUNT - 1;
+    }
+
+    game->difficulty = difficulty;
+    game->menu_index = difficulty;
+    game->start_level = start_level;
+    start_new_game(game);
+}
+
+void game_show_menu(Game *game)
+{
+    game->state = GAME_MENU;
 }
 
 void game_handle_input(Game *game, InputKey input)
@@ -893,9 +998,21 @@ void game_handle_input(Game *game, InputKey input)
         return;
     }
 
+    if (game->state == GAME_MENU) {
+        if (input == INPUT_UP) {
+            game->menu_index = (game->menu_index + DIFF_HARD) % (DIFF_HARD + 1);
+        } else if (input == INPUT_DOWN) {
+            game->menu_index = (game->menu_index + 1) % (DIFF_HARD + 1);
+        } else if (input == INPUT_PULSE || input == INPUT_RESTART) {
+            game->difficulty = game->menu_index;
+            start_new_game(game);
+        }
+        return;
+    }
+
     if (input == INPUT_RESTART &&
         (game->state == GAME_WON || game->state == GAME_OVER || game->state == GAME_QUIT)) {
-        game_init(game);
+        start_new_game(game);
         return;
     }
 
@@ -910,7 +1027,7 @@ void game_handle_input(Game *game, InputKey input)
 
     if (input == INPUT_PULSE) {
         /* Stasis pulse: spend a full charge meter to freeze every ghost. */
-        if (game->state == GAME_RUNNING && game->charge >= CHARGE_MAX) {
+        if (game->state == GAME_RUNNING && game->charge >= game->charge_max) {
             game->charge = 0;
             game->stasis_ticks = STASIS_TICKS;
             platform_play(SND_PULSE);
@@ -924,7 +1041,7 @@ void game_handle_input(Game *game, InputKey input)
 
     dir = input_to_direction(input);
     if (dir != DIR_NONE) {
-        game->player.dir = dir;
+        game->player.desired_dir = dir;
     }
 }
 
@@ -939,6 +1056,19 @@ void game_update(Game *game)
 
         if (game->countdown_ticks <= 0) {
             game->state = GAME_RUNNING;
+        }
+        return;
+    }
+
+    if (game->state == GAME_DYING) {
+        if (game->popup_ticks > 0) {
+            game->popup_ticks--;
+        }
+        if (game->dying_ticks > 0) {
+            game->dying_ticks--;
+        }
+        if (game->dying_ticks <= 0) {
+            finish_dying(game);
         }
         return;
     }
@@ -987,7 +1117,9 @@ void game_update(Game *game)
         }
         if (game->ai_timer <= 0) {
             game->ai_mode = (game->ai_mode == AI_CHASE) ? AI_SCATTER : AI_CHASE;
-            game->ai_timer = (game->ai_mode == AI_CHASE) ? CHASE_TICKS : SCATTER_TICKS;
+            game->ai_timer = (game->ai_mode == AI_CHASE)
+                                 ? diff_of(game)->chase_ticks
+                                 : diff_of(game)->scatter_ticks;
         }
     }
 
@@ -1015,14 +1147,18 @@ int game_ghosts_are_frightened(const Game *game)
 
 int game_charge_percent(const Game *game)
 {
-    int percent = (game->charge * 100) / CHARGE_MAX;
+    int percent;
 
+    if (game->charge_max <= 0) {
+        return 0;
+    }
+    percent = (game->charge * 100) / game->charge_max;
     return percent > 100 ? 100 : percent;
 }
 
 int game_charge_is_ready(const Game *game)
 {
-    return game->charge >= CHARGE_MAX;
+    return game->charge_max > 0 && game->charge >= game->charge_max;
 }
 
 int game_power_is_blinking(const Game *game)
@@ -1061,13 +1197,25 @@ const char *game_state_label(GameState state)
         return "READY";
     case GAME_PAUSED:
         return "PAUSED";
+    case GAME_DYING:
+        return "DYING";
     case GAME_WON:
         return "YOU WIN";
     case GAME_OVER:
         return "GAME OVER";
     case GAME_QUIT:
         return "QUIT";
+    case GAME_MENU:
+        return "MENU";
     default:
         return "UNKNOWN";
     }
+}
+
+const char *game_difficulty_label(int difficulty)
+{
+    if (difficulty < DIFF_EASY || difficulty > DIFF_HARD) {
+        difficulty = DIFF_NORMAL;
+    }
+    return DIFFICULTY[difficulty].label;
 }

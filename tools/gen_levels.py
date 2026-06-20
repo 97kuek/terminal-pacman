@@ -104,6 +104,23 @@ def decorate(grid):
     return p, ghosts
 
 
+def carve_tunnel(grid):
+    """Open the left/right border on one central corridor row. Movement wraps
+    horizontally, so this becomes a warp tunnel. Both mouths stay reachable
+    from the interior, so connectivity is unaffected."""
+    cy = H // 2
+    candidates = [
+        y for y in range(1, H - 1)
+        if grid[y][1] != "#" and grid[y][W - 2] != "#"
+    ]
+    if not candidates:
+        return None
+    row = min(candidates, key=lambda y: abs(y - cy))
+    grid[row][0] = "."
+    grid[row][W - 1] = "."
+    return row
+
+
 def main():
     import os
 
@@ -112,6 +129,7 @@ def main():
     for i, (name, rows, cols, seed, prob) in enumerate(STAGES, start=1):
         grid = build(rows, cols, seed, prob)
         player, ghosts = decorate(grid)
+        tunnel_row = carve_tunnel(grid)
 
         # validate: every non-wall cell reachable from the player spawn
         all_open = open_cells(grid)
@@ -127,7 +145,8 @@ def main():
 
         pellets = sum(row.count(".") for row in lines)
         powers = sum(row.count("o") for row in lines)
-        print(f"{name}: {pellets} pellets, {powers} power, player {player}, ghosts {ghosts}")
+        print(f"{name}: {pellets} pellets, {powers} power, player {player}, "
+              f"ghosts {ghosts}, tunnel row {tunnel_row}")
 
         body = ",\n".join('        "' + ln + '"' for ln in lines)
         c_blocks.append("    {\n" + body + "\n    }")

@@ -33,6 +33,39 @@
 
 static char g_frame[1 << 16];
 static size_t g_len;
+static int g_mono = 0;
+
+void render_set_mono(int mono)
+{
+    g_mono = mono ? 1 : 0;
+}
+
+/* Remove SGR colour sequences (ESC [ ... m) in place, keeping cursor/clear
+ * escapes (H/J/K) so the layout survives. Used by --mono. */
+static void strip_colors(void)
+{
+    size_t r = 0;
+    size_t w = 0;
+
+    while (r < g_len) {
+        if (g_frame[r] == 0x1b && r + 1 < g_len && g_frame[r + 1] == '[') {
+            size_t k = r + 2;
+
+            while (k < g_len &&
+                   !((g_frame[k] >= 'A' && g_frame[k] <= 'Z') ||
+                     (g_frame[k] >= 'a' && g_frame[k] <= 'z'))) {
+                k++;
+            }
+            if (k < g_len && g_frame[k] == 'm') {
+                r = k + 1; /* drop the whole colour sequence */
+                continue;
+            }
+        }
+        g_frame[w++] = g_frame[r++];
+    }
+    g_len = w;
+    g_frame[w] = '\0';
+}
 
 static void buf_reset(void)
 {
@@ -124,8 +157,15 @@ static void cell_render(const Game *game, int x, int y, const char **color, char
     char tile;
 
     if (game->player.pos.x == x && game->player.pos.y == y) {
-        *color = C_PLAYER;
-        out[0] = 'C';
+        if (game->state == GAME_DYING) {
+            /* blink between a yellow C and a red X while dying */
+            int on = (game->dying_ticks / 2) % 2 == 0;
+            *color = on ? C_PLAYER : C_GHOST;
+            out[0] = on ? 'C' : 'X';
+        } else {
+            *color = C_PLAYER;
+            out[0] = 'C';
+        }
         out[1] = ' ';
         out[2] = '\0';
         return;
@@ -179,8 +219,9 @@ static void render_hud(const Game *game, int left_pad, int level_percent)
 {
     buf_spaces(left_pad);
     buf_put(C_TITLE "  PAC-MAN  " C_RESET);
-    buf_putf(C_LABEL "  Stage " C_VALUE "%d/%d " C_LABEL "%s",
-             game->level_index + 1, game->level_count, game->level_name);
+    buf_putf(C_LABEL "  Stage " C_VALUE "%d/%d " C_LABEL "%s   " C_WARN "[%s]",
+             game->level_index + 1, game->level_count, game->level_name,
+             game_difficulty_label(game->difficulty));
     line_break(left_pad);
 
     buf_putf(C_LABEL "Score " C_VALUE "%-6d  " C_LABEL "High " C_VALUE "%-6d  "
@@ -234,6 +275,8 @@ static void render_footer(const Game *game, int left_pad)
                  (game->countdown_ticks + 9) / 10);
     } else if (game->state == GAME_PAUSED) {
         buf_put(C_WARN "PAUSED" C_LABEL "  press P to resume.");
+    } else if (game->state == GAME_DYING) {
+        buf_put(C_GHOST "OUCH!" C_LABEL "  caught by a ghost...");
     } else if (game->state == GAME_WON) {
         buf_put(C_GOOD "CLEAR!" C_LABEL "  all stages done. R restart / Q quit.");
     } else if (game->state == GAME_OVER) {
@@ -259,6 +302,65 @@ static void render_footer(const Game *game, int left_pad)
     buf_put(C_RESET "\x1b[K");
 }
 
+static void render_menu(const Game *game, int cols, int rows)
+{
+    const int menu_w = 52;
+    const char *names[3] = {"Easy", "Normal", "Hard"};
+    const char *descs[3] = {
+        "relaxed ghosts, pulse charges fast",
+        "the standard hunt",
+        "fast, relentless ghosts"
+    };
+    int pad = (cols - menu_w) / 2;
+    int top = (rows - 12) / 2;
+    int i;
+
+    if (pad < 0) {
+        pad = 0;
+    }
+    if (top < 0) {
+        top = 0;
+    }
+
+    buf_reset();
+    buf_put("\x1b[H");
+    for (i = 0; i < top; i++) {
+        buf_put("\x1b[K\r\n");
+    }
+
+    buf_spaces(pad);
+    buf_put(C_TITLE "   T E R M I N A L   P A C - M A N");
+    line_break(pad);
+    line_break(pad);
+    buf_spaces(pad);
+    buf_put(C_LABEL "   Select difficulty:");
+    line_break(pad);
+    line_break(pad);
+
+    for (i = DIFF_EASY; i <= DIFF_HARD; i++) {
+        buf_spaces(pad);
+        if (i == game->menu_index) {
+            buf_putf(C_GOOD "   > %-8s" C_LABEL "%s", names[i], descs[i]);
+        } else {
+            buf_putf(C_DIM "     %-8s%s", names[i], descs[i]);
+        }
+        line_break(pad);
+    }
+
+    line_break(pad);
+    buf_spaces(pad);
+    buf_put(C_LABEL "   W/S or arrows to choose,  Space to start,  Q to quit");
+    line_break(pad);
+    if (game->high_score > 0) {
+        line_break(pad);
+        buf_spaces(pad);
+        buf_putf(C_LABEL "   High score: " C_VALUE "%d", game->high_score);
+        line_break(pad);
+    }
+
+    buf_put(C_RESET "\x1b[J");
+}
+
 void render_game(const Game *game)
 {
     int x;
@@ -277,6 +379,15 @@ void render_game(const Game *game)
     }
 
     platform_term_size(&cols, &rows);
+
+    if (game->state == GAME_MENU) {
+        render_menu(game, cols, rows);
+        if (g_mono) {
+            strip_colors();
+        }
+        platform_present(g_frame);
+        return;
+    }
 
     left_pad = (cols - BOARD_COLS) / 2;
     if (left_pad < 0) {
@@ -322,5 +433,8 @@ void render_game(const Game *game)
 
     /* Clear anything left below the content, then flush in a single write. */
     buf_put(C_RESET "\x1b[J");
+    if (g_mono) {
+        strip_colors();
+    }
     platform_present(g_frame);
 }
