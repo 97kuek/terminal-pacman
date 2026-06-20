@@ -9,14 +9,26 @@ typedef enum InputKey {
     INPUT_RIGHT,
     INPUT_RESTART,
     INPUT_PAUSE,
-    INPUT_QUIT
+    INPUT_QUIT,
+    INPUT_PULSE
 } InputKey;
+
+typedef enum SoundId {
+    SND_PELLET = 0,
+    SND_POWER,
+    SND_EAT_GHOST,
+    SND_FRUIT,
+    SND_PULSE,
+    SND_DEATH,
+    SND_CLEAR
+} SoundId;
 
 int platform_init(void);
 void platform_shutdown(void);
 InputKey platform_poll_input(void);
-void platform_clear_screen(void);
-void platform_finish_frame(void);
+void platform_play(SoundId sound);
+void platform_present(const char *frame);
+void platform_term_size(int *cols, int *rows);
 void platform_sleep_ms(int milliseconds);
 
 #endif

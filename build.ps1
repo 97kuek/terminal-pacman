@@ -6,6 +6,7 @@ $sources = @(
     "src/main.c",
     "src/game.c",
     "src/render.c",
+    "src/pathfind.c",
     "src/platform_win.c"
 )
 

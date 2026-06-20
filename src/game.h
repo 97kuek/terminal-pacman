@@ -3,9 +3,9 @@
 
 #include "platform.h"
 
-#define MAP_WIDTH 59
-#define MAP_HEIGHT 23
-#define GHOST_COUNT 3
+#define MAP_WIDTH 45
+#define MAP_HEIGHT 21
+#define GHOST_COUNT 4
 
 typedef enum Direction {
     DIR_NONE = 0,
@@ -26,9 +26,16 @@ typedef enum GameState {
 
 typedef enum GhostBehavior {
     GHOST_RANDOM = 0,
-    GHOST_CHASER,
-    GHOST_AMBUSH
+    GHOST_CHASER,  /* Blinky: A* straight at the player */
+    GHOST_AMBUSH,  /* Pinky: A* to a few tiles ahead of the player */
+    GHOST_FLANK,   /* Inky: A* to a cell mirrored through the chaser */
+    GHOST_SHY      /* Clyde: chases when far, retreats to its corner when close */
 } GhostBehavior;
+
+typedef enum AiMode {
+    AI_SCATTER = 0, /* ghosts head for their home corners (a breather) */
+    AI_CHASE        /* ghosts converge on the player (the pressure) */
+} AiMode;
 
 typedef struct Position {
     int x;
@@ -38,6 +45,7 @@ typedef struct Position {
 typedef struct Actor {
     Position pos;
     Position spawn;
+    Position scatter; /* home corner used in AI_SCATTER mode */
     Direction dir;
     GhostBehavior behavior;
 } Actor;
@@ -57,6 +65,19 @@ typedef struct Game {
     int level_index;
     int level_count;
     int tick;
+    int ai_mode;          /* AiMode: scatter/chase wave the ghosts follow */
+    int ai_timer;         /* ticks left in the current wave */
+    int charge;           /* stasis-pulse meter, filled by eating pellets */
+    int stasis_ticks;     /* >0 while ghosts are frozen by a pulse */
+    int ghost_combo;      /* ghosts eaten in the current power window */
+    int popup_ticks;      /* >0 while a floating score popup is shown */
+    int popup_value;      /* points earned by the latest pickup */
+    Position popup_pos;   /* board cell the popup is anchored to */
+    Position fruit_home;  /* where bonus fruit appears */
+    Position fruit_pos;   /* current fruit cell (valid while fruit_ticks > 0) */
+    int fruit_ticks;      /* >0 while bonus fruit is on the board */
+    int fruit_value;      /* points for eating the current fruit */
+    int fruit_spawns_left;/* remaining fruit spawns this stage */
     GameState state;
 } Game;
 
@@ -67,6 +88,8 @@ int game_is_finished(const Game *game);
 int game_ghosts_are_frightened(const Game *game);
 int game_power_is_blinking(const Game *game);
 int game_ghost_move_interval(const Game *game);
+int game_charge_percent(const Game *game);
+int game_charge_is_ready(const Game *game);
 
 const char *game_state_label(GameState state);
 

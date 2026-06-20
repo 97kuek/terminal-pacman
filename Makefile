@@ -2,7 +2,7 @@ CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -pedantic -O2
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/terminal-pacman
-SOURCES := src/main.c src/game.c src/render.c
+SOURCES := src/main.c src/game.c src/render.c src/pathfind.c
 
 ifeq ($(OS),Windows_NT)
 	SOURCES += src/platform_win.c

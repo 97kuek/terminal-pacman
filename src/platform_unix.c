@@ -2,7 +2,10 @@
 
 #include "platform.h"
 
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <termios.h>
 #include <time.h>
@@ -59,7 +62,7 @@ int platform_init(void)
 void platform_shutdown(void)
 {
     if (terminal_configured) {
-        fputs("\033[?25h\n", stdout);
+        fputs("\x1b[0m\x1b[?25h\n", stdout);
         fflush(stdout);
         tcsetattr(STDIN_FILENO, TCSANOW, &original_terminal);
         terminal_configured = 0;
@@ -115,6 +118,8 @@ InputKey platform_poll_input(void)
     case 'p':
     case 'P':
         return INPUT_PAUSE;
+    case ' ':
+        return INPUT_PULSE;
     case 'q':
     case 'Q':
         return INPUT_QUIT;
@@ -123,14 +128,54 @@ InputKey platform_poll_input(void)
     }
 }
 
-void platform_clear_screen(void)
+void platform_play(SoundId sound)
 {
-    fputs("\033[H", stdout);
+    (void)sound;
+    fputc('\a', stdout);
+    fflush(stdout);
 }
 
-void platform_finish_frame(void)
+void platform_present(const char *frame)
 {
-    fputs("\033[J", stdout);
+    size_t length;
+    size_t offset = 0;
+
+    if (frame == NULL) {
+        return;
+    }
+
+    length = strlen(frame);
+    while (offset < length) {
+        ssize_t written = write(STDOUT_FILENO, frame + offset, length - offset);
+
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        if (written == 0) {
+            break;
+        }
+
+        offset += (size_t)written;
+    }
+}
+
+void platform_term_size(int *cols, int *rows)
+{
+    struct winsize ws;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) != 0) {
+        return;
+    }
+
+    if (cols != NULL) {
+        *cols = ws.ws_col;
+    }
+    if (rows != NULL) {
+        *rows = ws.ws_row;
+    }
 }
 
 void platform_sleep_ms(int milliseconds)
