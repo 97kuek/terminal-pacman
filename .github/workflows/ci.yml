@@ -16,9 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up MinGW
+      - name: Set up MinGW (Windows)
         if: runner.os == 'Windows'
-        uses: egor-tensin/setup-mingw@v2
+        shell: pwsh
+        run: |
+          # windows-latest ships MinGW-w64; make sure gcc is on PATH for later steps.
+          echo "C:\mingw64\bin" >> $env:GITHUB_PATH
+          echo "C:\ProgramData\mingw64\bin" >> $env:GITHUB_PATH
 
       - name: Build
         if: runner.os != 'Windows'
