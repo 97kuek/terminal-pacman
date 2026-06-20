@@ -298,7 +298,8 @@ void render_game(const Game *game)
     render_hud(game, left_pad, level_percent);
 
     for (y = 0; y < MAP_HEIGHT; y++) {
-        buf_spaces(left_pad);
+        /* The preceding line_break already padded this row; adding more here
+         * would double the indent and push the board off-centre. */
         cur_color = NULL;
         for (x = 0; x < MAP_WIDTH; x++) {
             const char *color = NULL;
