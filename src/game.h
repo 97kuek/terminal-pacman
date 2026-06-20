@@ -44,14 +44,18 @@ typedef struct Actor {
 
 typedef struct Game {
     char map[MAP_HEIGHT][MAP_WIDTH + 1];
+    char level_name[64];
     Actor player;
     Actor ghosts[GHOST_COUNT];
     int score;
+    int high_score;
     int lives;
     int pellets_remaining;
     int initial_pellets;
     int power_ticks;
     int countdown_ticks;
+    int level_index;
+    int level_count;
     int tick;
     GameState state;
 } Game;
@@ -61,6 +65,7 @@ void game_handle_input(Game *game, InputKey input);
 void game_update(Game *game);
 int game_is_finished(const Game *game);
 int game_ghosts_are_frightened(const Game *game);
+int game_power_is_blinking(const Game *game);
 int game_ghost_move_interval(const Game *game);
 
 const char *game_state_label(GameState state);

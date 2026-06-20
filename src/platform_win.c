@@ -7,6 +7,19 @@
 
 int platform_init(void)
 {
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    DWORD cells;
+    DWORD written;
+    COORD home = {0, 0};
+
+    if (console != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(console, &info)) {
+        cells = (DWORD)info.dwSize.X * (DWORD)info.dwSize.Y;
+        FillConsoleOutputCharacterA(console, ' ', cells, home, &written);
+        FillConsoleOutputAttribute(console, info.wAttributes, cells, home, &written);
+        SetConsoleCursorPosition(console, home);
+    }
+
     return 1;
 }
 
@@ -69,19 +82,32 @@ InputKey platform_poll_input(void)
 void platform_clear_screen(void)
 {
     HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    COORD home = {0, 0};
+
+    if (console == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    SetConsoleCursorPosition(console, home);
+}
+
+void platform_finish_frame(void)
+{
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO info;
     DWORD cells;
     DWORD written;
-    COORD home = {0, 0};
 
     if (console == INVALID_HANDLE_VALUE || !GetConsoleScreenBufferInfo(console, &info)) {
         return;
     }
 
-    cells = (DWORD)info.dwSize.X * (DWORD)info.dwSize.Y;
-    FillConsoleOutputCharacterA(console, ' ', cells, home, &written);
-    FillConsoleOutputAttribute(console, info.wAttributes, cells, home, &written);
-    SetConsoleCursorPosition(console, home);
+    cells = (DWORD)((info.dwSize.Y - info.dwCursorPosition.Y - 1) * info.dwSize.X +
+                    (info.dwSize.X - info.dwCursorPosition.X));
+    if (cells > 0) {
+        FillConsoleOutputCharacterA(console, ' ', cells, info.dwCursorPosition, &written);
+        FillConsoleOutputAttribute(console, info.wAttributes, cells, info.dwCursorPosition, &written);
+    }
 }
 
 void platform_sleep_ms(int milliseconds)

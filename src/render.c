@@ -10,6 +10,9 @@ static char ghost_at(const Game *game, int x, int y)
 
     for (i = 0; i < GHOST_COUNT; i++) {
         if (game->ghosts[i].pos.x == x && game->ghosts[i].pos.y == y) {
+            if (game_power_is_blinking(game)) {
+                return (game->tick / 4) % 2 == 0 ? 'g' : 'G';
+            }
             return game_ghosts_are_frightened(game) ? 'g' : 'G';
         }
     }
@@ -25,9 +28,14 @@ void render_game(const Game *game)
 
     platform_clear_screen();
 
-    printf("Score: %d  Lives: %d  Pellets: %d  State: %s  Power: %d  Ghost speed: %d\n",
+    printf("Level: %d/%d %s  Score: %d  High: %d  Lives: %d\n",
+           game->level_index + 1,
+           game->level_count,
+           game->level_name,
            game->score,
-           game->lives,
+           game->high_score,
+           game->lives);
+    printf("Pellets: %d  State: %s  Power: %d  Ghost speed: %d\n",
            game->pellets_remaining,
            game_state_label(game->state),
            game->power_ticks,
@@ -59,8 +67,13 @@ void render_game(const Game *game)
     } else if (game->state == GAME_QUIT) {
         printf("\nQuit requested.\n");
     } else if (game_ghosts_are_frightened(game)) {
-        printf("\nPower mode: eat frightened ghosts while they are shown as g.\n");
+        if (game_power_is_blinking(game)) {
+            printf("\nPower mode ending soon. Frightened ghosts are blinking.\n");
+        } else {
+            printf("\nPower mode: eat frightened ghosts while they are shown as g.\n");
+        }
     }
 
+    platform_finish_frame();
     fflush(stdout);
 }

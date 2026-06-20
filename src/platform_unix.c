@@ -50,6 +50,8 @@ int platform_init(void)
         return 0;
     }
 
+    fputs("\033[?25l\033[H\033[J", stdout);
+    fflush(stdout);
     terminal_configured = 1;
     return 1;
 }
@@ -57,6 +59,8 @@ int platform_init(void)
 void platform_shutdown(void)
 {
     if (terminal_configured) {
+        fputs("\033[?25h\n", stdout);
+        fflush(stdout);
         tcsetattr(STDIN_FILENO, TCSANOW, &original_terminal);
         terminal_configured = 0;
     }
@@ -121,7 +125,12 @@ InputKey platform_poll_input(void)
 
 void platform_clear_screen(void)
 {
-    fputs("\033[H\033[J", stdout);
+    fputs("\033[H", stdout);
+}
+
+void platform_finish_frame(void)
+{
+    fputs("\033[J", stdout);
 }
 
 void platform_sleep_ms(int milliseconds)

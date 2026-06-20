@@ -1,33 +1,85 @@
 #include "game.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define POWER_TICKS 80
+#define POWER_BLINK_TICKS 25
 #define READY_TICKS 20
 #define GHOST_EAT_SCORE 200
+#define SCORE_FILE "terminal-pacman.score"
+#define LEVEL_COUNT 3
 
-static const char *INITIAL_MAP[MAP_HEIGHT] = {
-    "###########################",
-    "#o...........#...........o#",
-    "#.####.#####.#.#####.####.#",
-    "#.#  #.#   #.#.#   #.#  #.#",
-    "#.####.#####.#.#####.####.#",
-    "#.........................#",
-    "#.####.#.#########.#.####.#",
-    "#......#.....#.....#......#",
-    "######.##### # #####.######",
-    "#............ ............#",
-    "#.####.#####.#.#####.####.#",
-    "#.#  #.......C.......#  #.#",
-    "#.####.#.#########.#.####.#",
-    "#o.....#...........#.....o#",
-    "###########################"
+static const char *LEVEL_FILES[LEVEL_COUNT] = {
+    "levels/stage1.txt",
+    "levels/stage2.txt",
+    "levels/stage3.txt"
 };
 
-static const Position PLAYER_SPAWN = {13, 11};
-static const Position GHOST_SPAWNS[GHOST_COUNT] = {
+static const char *LEVEL_NAMES[LEVEL_COUNT] = {
+    "Stage 1",
+    "Stage 2",
+    "Stage 3"
+};
+
+static const char *BUILTIN_LEVELS[LEVEL_COUNT][MAP_HEIGHT] = {
+    {
+        "###########################",
+        "#o...........#...........o#",
+        "#.####.#####.#.#####.####.#",
+        "#.#  #.#   #.#.#   #.#  #.#",
+        "#.####.#####.#.#####.####.#",
+        "#.........................#",
+        "#.####.#.#########.#.####.#",
+        "#......#..G..#..G..#......#",
+        "######.##### # #####.######",
+        "#............G............#",
+        "#.####.#####.#.#####.####.#",
+        "#.#  #.......C.......#  #.#",
+        "#.####.#.#########.#.####.#",
+        "#o.....#...........#.....o#",
+        "###########################"
+    },
+    {
+        "###########################",
+        "#o....#.............#....o#",
+        "#.##.#.#.#########.#.#.##.#",
+        "#....#.#.....G.....#.#....#",
+        "####.#.#####.#.#####.#.####",
+        "#...........#.#...........#",
+        "#.#####.###.#.#.###.#####.#",
+        "#.....#...#..G..#...#.....#",
+        "#####.###.#######.###.#####",
+        "#.............G...........#",
+        "#.#####.#.#######.#.#####.#",
+        "#o......#....C....#......o#",
+        "#.#########.#.###########.#",
+        "#.........................#",
+        "###########################"
+    },
+    {
+        "###########################",
+        "#o.........#...#.........o#",
+        "#.###.###.#.#.#.#.###.###.#",
+        "#.....#.....G.....#.....#.#",
+        "###.#.#.#########.#.#.#.###",
+        "#...#...............#.....#",
+        "#.#####.### # ###.#####.#.#",
+        "#.......#..G G..#.......#.#",
+        "#.#####.### # ###.#####.#.#",
+        "#.....#...............#...#",
+        "###.#.#.#########.#.#.#.###",
+        "#.#.....#...C...#.....#...#",
+        "#.###.###.#.#.#.#.###.###.#",
+        "#o.........#...#.........o#",
+        "###########################"
+    }
+};
+
+static const Position DEFAULT_PLAYER_SPAWN = {13, 11};
+static const Position DEFAULT_GHOST_SPAWNS[GHOST_COUNT] = {
     {13, 7},
     {12, 9},
     {14, 9}
@@ -85,17 +137,52 @@ static int is_pellet_tile(char tile)
     return tile == '.' || tile == 'o';
 }
 
+static int load_high_score(void)
+{
+    int score = 0;
+    FILE *file = fopen(SCORE_FILE, "r");
+
+    if (file == NULL) {
+        return 0;
+    }
+
+    if (fscanf(file, "%d", &score) != 1 || score < 0) {
+        score = 0;
+    }
+
+    fclose(file);
+    return score;
+}
+
+static void save_high_score(int score)
+{
+    FILE *file = fopen(SCORE_FILE, "w");
+
+    if (file == NULL) {
+        return;
+    }
+
+    fprintf(file, "%d\n", score);
+    fclose(file);
+}
+
+static void update_high_score(Game *game)
+{
+    if (game->score > game->high_score) {
+        game->high_score = game->score;
+        save_high_score(game->high_score);
+    }
+}
+
 static void reset_actors(Game *game)
 {
     int i;
 
-    game->player.pos = PLAYER_SPAWN;
-    game->player.spawn = PLAYER_SPAWN;
+    game->player.pos = game->player.spawn;
     game->player.dir = DIR_NONE;
 
     for (i = 0; i < GHOST_COUNT; i++) {
-        game->ghosts[i].pos = GHOST_SPAWNS[i];
-        game->ghosts[i].spawn = GHOST_SPAWNS[i];
+        game->ghosts[i].pos = game->ghosts[i].spawn;
         game->ghosts[i].dir = DIR_NONE;
         game->ghosts[i].behavior = GHOST_BEHAVIORS[i];
     }
@@ -131,18 +218,109 @@ static void count_pellets(Game *game)
     game->initial_pellets = game->pellets_remaining;
 }
 
-static void clean_spawn_markers(Game *game)
+static void strip_line_end(char *line)
+{
+    size_t length = strlen(line);
+
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) {
+        line[length - 1] = '\0';
+        length--;
+    }
+}
+
+static void apply_level_lines(Game *game, const char *lines[MAP_HEIGHT], const char *name)
 {
     int x;
     int y;
+    int ghost_count = 0;
+
+    game->player.spawn = DEFAULT_PLAYER_SPAWN;
+    for (x = 0; x < GHOST_COUNT; x++) {
+        game->ghosts[x].spawn = DEFAULT_GHOST_SPAWNS[x];
+    }
+
+    strncpy(game->level_name, name, sizeof(game->level_name) - 1);
+    game->level_name[sizeof(game->level_name) - 1] = '\0';
 
     for (y = 0; y < MAP_HEIGHT; y++) {
+        size_t length = strlen(lines[y]);
+
         for (x = 0; x < MAP_WIDTH; x++) {
-            if (game->map[y][x] == 'C' || game->map[y][x] == 'G') {
-                game->map[y][x] = ' ';
+            char tile = x < (int)length ? lines[y][x] : ' ';
+
+            if (tile == 'C') {
+                game->player.spawn.x = x;
+                game->player.spawn.y = y;
+                tile = ' ';
+            } else if (tile == 'G') {
+                if (ghost_count < GHOST_COUNT) {
+                    game->ghosts[ghost_count].spawn.x = x;
+                    game->ghosts[ghost_count].spawn.y = y;
+                    ghost_count++;
+                }
+                tile = ' ';
+            } else if (tile != '#' && tile != '.' && tile != 'o' && tile != ' ') {
+                tile = ' ';
             }
+
+            game->map[y][x] = tile;
         }
+        game->map[y][MAP_WIDTH] = '\0';
     }
+}
+
+static int load_level_file(Game *game, int level_index)
+{
+    FILE *file;
+    char buffers[MAP_HEIGHT][MAP_WIDTH + 8];
+    const char *lines[MAP_HEIGHT];
+    int y;
+
+    file = fopen(LEVEL_FILES[level_index], "r");
+    if (file == NULL) {
+        return 0;
+    }
+
+    for (y = 0; y < MAP_HEIGHT; y++) {
+        if (fgets(buffers[y], sizeof(buffers[y]), file) == NULL) {
+            fclose(file);
+            return 0;
+        }
+        strip_line_end(buffers[y]);
+        lines[y] = buffers[y];
+    }
+
+    fclose(file);
+    apply_level_lines(game, lines, LEVEL_NAMES[level_index]);
+    return 1;
+}
+
+static void load_level(Game *game, int level_index)
+{
+    if (!load_level_file(game, level_index)) {
+        apply_level_lines(game, BUILTIN_LEVELS[level_index], LEVEL_NAMES[level_index]);
+    }
+
+    game->level_index = level_index;
+    game->level_count = LEVEL_COUNT;
+    game->power_ticks = 0;
+    game->tick = 0;
+
+    count_pellets(game);
+    reset_actors(game);
+    start_ready(game);
+}
+
+static void advance_or_win(Game *game)
+{
+    update_high_score(game);
+
+    if (game->level_index + 1 < game->level_count) {
+        load_level(game, game->level_index + 1);
+        return;
+    }
+
+    game->state = GAME_WON;
 }
 
 static void collect_pellet(Game *game)
@@ -153,15 +331,17 @@ static void collect_pellet(Game *game)
         *tile = ' ';
         game->score += 10;
         game->pellets_remaining--;
+        update_high_score(game);
     } else if (*tile == 'o') {
         *tile = ' ';
         game->score += 50;
         game->pellets_remaining--;
         game->power_ticks = POWER_TICKS;
+        update_high_score(game);
     }
 
     if (game->pellets_remaining <= 0) {
-        game->state = GAME_WON;
+        advance_or_win(game);
     }
 }
 
@@ -169,6 +349,7 @@ static void lose_life(Game *game)
 {
     game->lives--;
     game->power_ticks = 0;
+    update_high_score(game);
 
     if (game->lives <= 0) {
         game->state = GAME_OVER;
@@ -190,6 +371,7 @@ static void resolve_collisions(Game *game)
 
         if (game->power_ticks > 0) {
             game->score += GHOST_EAT_SCORE;
+            update_high_score(game);
             reset_ghost(&game->ghosts[i]);
         } else {
             lose_life(game);
@@ -458,23 +640,16 @@ static void move_ghost(Game *game, Actor *ghost)
 
 void game_init(Game *game)
 {
-    int y;
+    int high_score = load_high_score();
 
     memset(game, 0, sizeof(*game));
 
-    for (y = 0; y < MAP_HEIGHT; y++) {
-        strcpy(game->map[y], INITIAL_MAP[y]);
-    }
-
-    clean_spawn_markers(game);
-    count_pellets(game);
-    reset_actors(game);
-
     game->score = 0;
+    game->high_score = high_score;
     game->lives = 3;
-    game->power_ticks = 0;
-    game->tick = 0;
-    start_ready(game);
+    game->level_count = LEVEL_COUNT;
+
+    load_level(game, 0);
 }
 
 void game_handle_input(Game *game, InputKey input)
@@ -486,6 +661,7 @@ void game_handle_input(Game *game, InputKey input)
     }
 
     if (input == INPUT_QUIT) {
+        update_high_score(game);
         game->state = GAME_QUIT;
         return;
     }
@@ -569,6 +745,13 @@ int game_is_finished(const Game *game)
 int game_ghosts_are_frightened(const Game *game)
 {
     return game->power_ticks > 0;
+}
+
+int game_power_is_blinking(const Game *game)
+{
+    return game->power_ticks > 0 &&
+           game->power_ticks <= POWER_BLINK_TICKS &&
+           (game->power_ticks / 4) % 2 == 0;
 }
 
 int game_ghost_move_interval(const Game *game)
