@@ -7,6 +7,7 @@ $sources = @(
     "src/game.c",
     "src/render.c",
     "src/pathfind.c",
+    "src/maze.c",
     "src/platform_win.c"
 )
 

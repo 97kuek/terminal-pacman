@@ -32,6 +32,14 @@ typedef enum Difficulty {
     DIFF_HARD
 } Difficulty;
 
+typedef enum GameMode {
+    MODE_CLASSIC = 0,   /* the three hand-built stages, win at the end */
+    MODE_ENDLESS,       /* roguelite: one life, mazes regenerate, difficulty ramps */
+    MODE_TIMEATTACK     /* fixed time, maximise score, mazes regenerate */
+} GameMode;
+
+#define MODE_COUNT 3
+
 typedef enum GhostBehavior {
     GHOST_RANDOM = 0,
     GHOST_CHASER,  /* Blinky: A* straight at the player */
@@ -91,12 +99,19 @@ typedef struct Game {
     int difficulty;       /* Difficulty: tunes ghost speed, waves, charge */
     int charge_max;       /* pellets needed to fill the pulse (by difficulty) */
     int start_level;      /* first stage to load (CLI override) */
+    int mode;             /* GameMode: classic / endless / time attack */
+    int time_left;        /* ticks remaining in Time Attack */
+    unsigned int maze_seed;/* RNG seed for the current generated maze */
+    int mazes_cleared;    /* generated mazes finished this run (endless ramp) */
+    int high_scores[MODE_COUNT]; /* best score per mode */
+    int menu_field;       /* 0 = mode row, 1 = difficulty row */
+    int menu_mode;        /* highlighted mode on the start menu */
     int menu_index;       /* highlighted difficulty on the start menu */
     GameState state;
 } Game;
 
 void game_init(Game *game);
-void game_configure(Game *game, int difficulty, int start_level);
+void game_configure(Game *game, int mode, int difficulty, int start_level);
 void game_show_menu(Game *game);
 void game_handle_input(Game *game, InputKey input);
 void game_update(Game *game);
@@ -109,5 +124,6 @@ int game_charge_is_ready(const Game *game);
 
 const char *game_state_label(GameState state);
 const char *game_difficulty_label(int difficulty);
+const char *game_mode_label(int mode);
 
 #endif

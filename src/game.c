@@ -5,7 +5,9 @@
 #include <string.h>
 
 #include "pathfind.h"
+#include "maze.h"
 
+#define TIME_ATTACK_TICKS 1200 /* 120s at 100ms/frame */
 #define POWER_TICKS 80
 #define POWER_BLINK_TICKS 25
 #define READY_TICKS 20
@@ -216,41 +218,56 @@ static int is_pellet_tile(char tile)
     return tile == '.' || tile == 'o';
 }
 
-static int load_high_score(void)
+/* Score file holds one best score per mode (one integer per line). Older files
+ * with a single value still load (the rest default to 0). */
+static void load_high_scores(int scores[MODE_COUNT])
 {
-    int score = 0;
     FILE *file = fopen(SCORE_FILE, "r");
+    int i;
 
+    for (i = 0; i < MODE_COUNT; i++) {
+        scores[i] = 0;
+    }
     if (file == NULL) {
-        return 0;
+        return;
     }
+    for (i = 0; i < MODE_COUNT; i++) {
+        int value;
 
-    if (fscanf(file, "%d", &score) != 1 || score < 0) {
-        score = 0;
+        if (fscanf(file, "%d", &value) != 1) {
+            break;
+        }
+        scores[i] = value < 0 ? 0 : value;
     }
-
     fclose(file);
-    return score;
 }
 
-static void save_high_score(int score)
+static void save_high_scores(const int scores[MODE_COUNT])
 {
     FILE *file = fopen(SCORE_FILE, "w");
+    int i;
 
     if (file == NULL) {
         return;
     }
-
-    fprintf(file, "%d\n", score);
+    for (i = 0; i < MODE_COUNT; i++) {
+        fprintf(file, "%d\n", scores[i]);
+    }
     fclose(file);
 }
 
 static void update_high_score(Game *game)
 {
-    if (game->score > game->high_score) {
-        game->high_score = game->score;
-        save_high_score(game->high_score);
+    int m = game->mode;
+
+    if (m < 0 || m >= MODE_COUNT) {
+        m = 0;
     }
+    if (game->score > game->high_scores[m]) {
+        game->high_scores[m] = game->score;
+        save_high_scores(game->high_scores);
+    }
+    game->high_score = game->high_scores[m];
 }
 
 static void reset_actors(Game *game)
@@ -389,14 +406,9 @@ static int load_level_file(Game *game, int level_index)
 static Position find_fruit_home(const Game *game);
 static void set_popup(Game *game, Position pos, int value);
 
-static void load_level(Game *game, int level_index)
+/* Common per-level reset once the map and spawns are in place. */
+static void begin_level(Game *game)
 {
-    if (!load_level_file(game, level_index)) {
-        apply_level_lines(game, BUILTIN_LEVELS[level_index], LEVEL_NAMES[level_index]);
-    }
-
-    game->level_index = level_index;
-    game->level_count = LEVEL_COUNT;
     game->power_ticks = 0;
     game->tick = 0;
     game->ai_mode = AI_SCATTER;
@@ -412,9 +424,59 @@ static void load_level(Game *game, int level_index)
     start_ready(game);
 }
 
+static void load_level(Game *game, int level_index)
+{
+    if (!load_level_file(game, level_index)) {
+        apply_level_lines(game, BUILTIN_LEVELS[level_index], LEVEL_NAMES[level_index]);
+    }
+
+    game->level_index = level_index;
+    game->level_count = LEVEL_COUNT;
+    begin_level(game);
+}
+
+/* Endless / Time Attack: synthesize a fresh maze with the C generator. */
+static void load_generated_level(Game *game)
+{
+    MazeSpawns sp;
+    int variant = game->mazes_cleared % 3;
+    int tries;
+    int i;
+
+    for (tries = 0; tries < 64; tries++) {
+        if (maze_generate(&game->map[0][0], MAP_WIDTH + 1, MAP_WIDTH, MAP_HEIGHT,
+                          game->maze_seed, variant, GHOST_COUNT, &sp)) {
+            break;
+        }
+        game->maze_seed = game->maze_seed * 1664525u + 1013904223u;
+    }
+
+    game->player.spawn.x = sp.player_x;
+    game->player.spawn.y = sp.player_y;
+    for (i = 0; i < GHOST_COUNT; i++) {
+        int gi = (sp.ghost_count > 0 && i < sp.ghost_count) ? i : 0;
+        game->ghosts[i].spawn.x = sp.ghost_x[gi];
+        game->ghosts[i].spawn.y = sp.ghost_y[gi];
+    }
+
+    if (game->mode == MODE_TIMEATTACK) {
+        strncpy(game->level_name, "Time Attack", sizeof(game->level_name) - 1);
+    } else {
+        snprintf(game->level_name, sizeof(game->level_name), "Maze %d",
+                 game->mazes_cleared + 1);
+    }
+    game->level_name[sizeof(game->level_name) - 1] = '\0';
+    game->level_index = game->mazes_cleared;
+    game->level_count = 0; /* unbounded */
+
+    begin_level(game);
+}
+
 static void advance_or_win(Game *game)
 {
-    int bonus = game->lives * CLEAR_BONUS_PER_LIFE;
+    int bonus = (game->mode == MODE_TIMEATTACK)
+                    ? 300
+                    : game->lives * CLEAR_BONUS_PER_LIFE;
 
     if (bonus > 0) {
         game->score += bonus;
@@ -423,12 +485,19 @@ static void advance_or_win(Game *game)
     update_high_score(game);
     platform_play(SND_CLEAR);
 
-    if (game->level_index + 1 < game->level_count) {
-        load_level(game, game->level_index + 1);
+    if (game->mode == MODE_CLASSIC) {
+        if (game->level_index + 1 < game->level_count) {
+            load_level(game, game->level_index + 1);
+        } else {
+            game->state = GAME_WON;
+        }
         return;
     }
 
-    game->state = GAME_WON;
+    /* Endless / Time Attack: keep going with a new maze. */
+    game->mazes_cleared++;
+    game->maze_seed = game->maze_seed * 1664525u + 1013904223u;
+    load_generated_level(game);
 }
 
 static void set_popup(Game *game, Position pos, int value)
@@ -556,7 +625,14 @@ static void begin_dying(Game *game)
 
 static void finish_dying(Game *game)
 {
-    game->lives--;
+    if (game->mode == MODE_TIMEATTACK) {
+        /* getting caught only costs the respawn pause, not the run */
+        reset_actors(game);
+        start_ready(game);
+        return;
+    }
+
+    game->lives--; /* Endless starts at 1 life, so a single miss ends it */
     update_high_score(game);
 
     if (game->lives <= 0) {
@@ -893,6 +969,9 @@ static int ghost_speed(const Game *game, const Actor *ghost)
 {
     int interval = game_ghost_move_interval(game) + diff_of(game)->interval_delta;
 
+    if (game->mode == MODE_ENDLESS) {
+        interval -= game->mazes_cleared / 3; /* relentless ramp each maze */
+    }
     if (interval < 1) {
         interval = 1;
     }
@@ -932,34 +1011,50 @@ static void move_ghost(Game *game, Actor *ghost)
     }
 }
 
-/* Reset score/lives/charge for a fresh run and load the starting stage. Keeps
- * the already-chosen difficulty, start level, and loaded high score. */
+/* Reset a run (score/lives/charge/maze) for the chosen mode and difficulty.
+ * Keeps the loaded high scores. */
 static void start_new_game(Game *game)
 {
     game->score = 0;
-    game->lives = 3;
     game->charge = 0;
     game->charge_max = diff_of(game)->charge_max;
-    load_level(game, game->start_level);
+    game->mazes_cleared = 0;
+    game->maze_seed = (unsigned int)rand() ^ ((unsigned int)game->difficulty << 16);
+    game->time_left = (game->mode == MODE_TIMEATTACK) ? TIME_ATTACK_TICKS : 0;
+    game->lives = (game->mode == MODE_CLASSIC) ? 3 : 1; /* endless = roguelite */
+    game->high_score = game->high_scores[game->mode];
+
+    if (game->mode == MODE_CLASSIC) {
+        load_level(game, game->start_level);
+    } else {
+        load_generated_level(game);
+    }
 }
 
 void game_init(Game *game)
 {
-    int high_score = load_high_score();
+    int highs[MODE_COUNT];
 
+    load_high_scores(highs);
     memset(game, 0, sizeof(*game));
+    memcpy(game->high_scores, highs, sizeof(highs));
 
-    game->high_score = high_score;
     game->level_count = LEVEL_COUNT;
     game->difficulty = DIFF_NORMAL;
+    game->mode = MODE_CLASSIC;
+    game->menu_mode = MODE_CLASSIC;
     game->menu_index = DIFF_NORMAL;
+    game->menu_field = 0;
     game->start_level = 0;
 
     start_new_game(game);
 }
 
-void game_configure(Game *game, int difficulty, int start_level)
+void game_configure(Game *game, int mode, int difficulty, int start_level)
 {
+    if (mode < 0 || mode >= MODE_COUNT) {
+        mode = MODE_CLASSIC;
+    }
     if (difficulty < DIFF_EASY) {
         difficulty = DIFF_EASY;
     }
@@ -973,6 +1068,8 @@ void game_configure(Game *game, int difficulty, int start_level)
         start_level = LEVEL_COUNT - 1;
     }
 
+    game->mode = mode;
+    game->menu_mode = mode;
     game->difficulty = difficulty;
     game->menu_index = difficulty;
     game->start_level = start_level;
@@ -999,12 +1096,26 @@ void game_handle_input(Game *game, InputKey input)
     }
 
     if (game->state == GAME_MENU) {
-        if (input == INPUT_UP) {
-            game->menu_index = (game->menu_index + DIFF_HARD) % (DIFF_HARD + 1);
-        } else if (input == INPUT_DOWN) {
-            game->menu_index = (game->menu_index + 1) % (DIFF_HARD + 1);
+        /* Up/Down switch between the Mode and Difficulty rows; Left/Right change
+         * the selected row's value; Space starts. */
+        if (input == INPUT_UP || input == INPUT_DOWN) {
+            game->menu_field ^= 1;
+        } else if (input == INPUT_LEFT) {
+            if (game->menu_field == 0) {
+                game->menu_mode = (game->menu_mode + MODE_COUNT - 1) % MODE_COUNT;
+            } else {
+                game->menu_index = (game->menu_index + DIFF_HARD) % (DIFF_HARD + 1);
+            }
+        } else if (input == INPUT_RIGHT) {
+            if (game->menu_field == 0) {
+                game->menu_mode = (game->menu_mode + 1) % MODE_COUNT;
+            } else {
+                game->menu_index = (game->menu_index + 1) % (DIFF_HARD + 1);
+            }
         } else if (input == INPUT_PULSE || input == INPUT_RESTART) {
+            game->mode = game->menu_mode;
             game->difficulty = game->menu_index;
+            game->high_score = game->high_scores[game->mode];
             start_new_game(game);
         }
         return;
@@ -1078,6 +1189,17 @@ void game_update(Game *game)
     }
 
     game->tick++;
+
+    if (game->mode == MODE_TIMEATTACK) {
+        if (game->time_left > 0) {
+            game->time_left--;
+        }
+        if (game->time_left <= 0) {
+            update_high_score(game);
+            game->state = GAME_OVER;
+            return;
+        }
+    }
 
     if (game->popup_ticks > 0) {
         game->popup_ticks--;
@@ -1218,4 +1340,18 @@ const char *game_difficulty_label(int difficulty)
         difficulty = DIFF_NORMAL;
     }
     return DIFFICULTY[difficulty].label;
+}
+
+const char *game_mode_label(int mode)
+{
+    switch (mode) {
+    case MODE_CLASSIC:
+        return "Classic";
+    case MODE_ENDLESS:
+        return "Endless";
+    case MODE_TIMEATTACK:
+        return "Time Attack";
+    default:
+        return "Classic";
+    }
 }
