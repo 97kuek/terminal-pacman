@@ -3,8 +3,8 @@
 
 #include "platform.h"
 
-#define MAP_WIDTH 27
-#define MAP_HEIGHT 15
+#define MAP_WIDTH 59
+#define MAP_HEIGHT 23
 #define GHOST_COUNT 3
 
 typedef enum Direction {
