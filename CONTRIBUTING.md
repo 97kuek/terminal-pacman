@@ -28,18 +28,21 @@ make
 ## 変更前に読むもの
 
 - `SPEC.md`: 現在のゲーム仕様
+- `CLAUDE.md`: 全体ガイド（ビルド・構成・調整ポイント・注意点）
 - `docs/IMPLEMENTATION_PLAN.md`: 実装構成と進捗
 - `docs/ROADMAP.md`: ゲーム性改善の優先度
+- `docs/AI_DESIGN.md`: 敵 AI の設計
 - `AGENTS.md`: AI エージェント向けの作業方針
 
 ## コーディング方針
 
-- C99 を基準にする。
+- C99 を基準にし、`-Wall -Wextra -pedantic` で警告ゼロを保つ。
 - 外部ライブラリは、必要性が明確になるまで追加しない。
-- OS 依存処理は `src/platform.h` の API に閉じ込める。
+- OS 依存処理（入力・VT初期化・描画出力・端末サイズ・サウンド・スリープ）は `src/platform.h` の API に閉じ込める。
 - ゲームルールは `src/game.c` に寄せ、描画処理と混ぜない。
-- 描画は `src/render.c` に寄せる。
-- まずは ASCII 表示を維持する。
+- 敵の経路探索は `src/pathfind.c`（A*）に分離する。
+- 描画は `src/render.c` に寄せる。表示は ASCII グリフ + ANSI カラーを使う。
+- 迷路を変えるときは `levels/*.txt` と `src/game.c` の内蔵配列を `tools/gen_levels.py` で生成して同期させる（連結性はジェネレータが検証）。
 - 関数は短く保ち、状態変更の責務を分ける。
 
 ## 変更の進め方
@@ -123,7 +126,7 @@ Add power pellet mode
 ```text
 敵の移動ロジックを分離
 
-BFSを使う追跡型と、進行方向を読む先読み型を分ける。
+A*を使う追跡型と、進行方向を読む先読み型を分ける。
 ```
 
 ### 避けたい例
