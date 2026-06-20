@@ -5,7 +5,8 @@ $target = Join-Path $buildDir "test.exe"
 $sources = @(
     "tests/test_game.c",
     "src/game.c",
-    "src/pathfind.c"
+    "src/pathfind.c",
+    "src/maze.c"
 )
 
 if (-not (Test-Path $buildDir)) {

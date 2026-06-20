@@ -50,6 +50,7 @@ CI（`.github/workflows/ci.yml`）が push / PR ごとに Windows / Linux / macO
 | `src/main.c` | エントリポイント、固定間隔ゲームループ（`FRAME_MS`）、シグナル処理 |
 | `src/game.h` / `src/game.c` | ゲーム状態と全ルール（移動・衝突・スコア・敵AI・ウェーブ・チャージ等）。`MAP_WIDTH` / `MAP_HEIGHT` / `GHOST_COUNT` もここ |
 | `src/pathfind.h` / `src/pathfind.c` | 敵追跡用の A* 経路探索（`astar_next`）。汎用グリッド関数でゲーム型に非依存。**最大 64x32 セル** |
+| `src/maze.h` / `src/maze.c` | 迷路ジェネレータ（`gen_levels.py` の C 移植、連結性検証つき）。Endless / Time Attack のランタイム生成に使用 |
 | `src/render.h` / `src/render.c` | 1 フレームを 1 バッファに組み立て、ANSI カラー・横2倍スケール・中央寄せして `platform_present` で一括出力 |
 | `src/platform.h` | 端末/OS API の境界（入力・VT初期化・一括描画・端末サイズ・サウンド・スリープ） |
 | `src/platform_win.c` | Windows 実装（`_kbhit`/`_getch`、VT 有効化、`WriteConsoleA`、別スレッド `Beep`） |
@@ -62,7 +63,8 @@ CI（`.github/workflows/ci.yml`）が push / PR ごとに Windows / Linux / macO
 
 ## ゲームの主要要素（現状）
 
-- 迷路: 45x21、密で狭い通路。
+- モード: Classic（3ステージ）/ Endless（ローグライト・無限生成・ランプ）/ Time Attack（120秒）。起動メニューまたは `--mode` で選択。ハイスコアはモード別（`high_scores[MODE_COUNT]`）。設計は [docs/MODES_DESIGN.md](docs/MODES_DESIGN.md)。
+- 迷路: 45x21、密で狭い通路。Classic は `levels/*.txt`、Endless/Time Attack は `maze_generate` でランタイム生成。
 - 敵: 4 体。性格分け（直線追跡 / 待ち伏せ / 挟み込み / 臆病）。追跡経路は A*。
 - 散開 / 追跡ウェーブ（`SCATTER_TICKS` / `CHASE_TICKS`）。終盤は追跡型が加速（Cruise Elroy）。
 - 連続捕食ボーナス（200→400→800→1600）、ボーナスフルーツ `F`、スコアポップアップ。

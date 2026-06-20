@@ -2,7 +2,7 @@ CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -pedantic -O2
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/terminal-pacman
-SOURCES := src/main.c src/game.c src/render.c src/pathfind.c
+SOURCES := src/main.c src/game.c src/render.c src/pathfind.c src/maze.c
 
 ifeq ($(OS),Windows_NT)
 	SOURCES += src/platform_win.c
@@ -25,7 +25,7 @@ run: $(TARGET)
 	$(TARGET)
 
 test: | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_game.c src/game.c src/pathfind.c -o $(BUILD_DIR)/test
+	$(CC) $(CFLAGS) tests/test_game.c src/game.c src/pathfind.c src/maze.c -o $(BUILD_DIR)/test
 	$(BUILD_DIR)/test
 
 clean:

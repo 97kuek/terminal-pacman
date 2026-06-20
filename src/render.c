@@ -219,14 +219,31 @@ static void render_hud(const Game *game, int left_pad, int level_percent)
 {
     buf_spaces(left_pad);
     buf_put(C_TITLE "  PAC-MAN  " C_RESET);
-    buf_putf(C_LABEL "  Stage " C_VALUE "%d/%d " C_LABEL "%s   " C_WARN "[%s]",
-             game->level_index + 1, game->level_count, game->level_name,
-             game_difficulty_label(game->difficulty));
+    if (game->mode == MODE_CLASSIC) {
+        buf_putf(C_LABEL "  " C_VALUE "Classic" C_LABEL "  Stage " C_VALUE "%d/%d   "
+                 C_WARN "[%s]", game->level_index + 1, game->level_count,
+                 game_difficulty_label(game->difficulty));
+    } else if (game->mode == MODE_ENDLESS) {
+        buf_putf(C_LABEL "  " C_VALUE "Endless" C_LABEL "  Maze " C_VALUE "%d   "
+                 C_WARN "[%s]", game->mazes_cleared + 1,
+                 game_difficulty_label(game->difficulty));
+    } else {
+        buf_putf(C_LABEL "  " C_VALUE "Time Attack" C_LABEL "  Mazes " C_VALUE "%d   "
+                 C_WARN "[%s]", game->mazes_cleared,
+                 game_difficulty_label(game->difficulty));
+    }
     line_break(left_pad);
 
-    buf_putf(C_LABEL "Score " C_VALUE "%-6d  " C_LABEL "High " C_VALUE "%-6d  "
-             C_LABEL "Lives " C_GOOD "%d  " C_LABEL "Progress " C_VALUE "%d%%",
-             game->score, game->high_score, game->lives, level_percent);
+    buf_putf(C_LABEL "Score " C_VALUE "%-6d  " C_LABEL "High " C_VALUE "%-6d  ",
+             game->score, game->high_score);
+    if (game->mode == MODE_TIMEATTACK) {
+        int secs = (game->time_left + 9) / 10;
+        const char *tcol = secs <= 10 ? C_GHOST : C_GOOD;
+        buf_putf(C_LABEL "Time " "%s%d:%02d", tcol, secs / 60, secs % 60);
+    } else {
+        buf_putf(C_LABEL "Lives " C_GOOD "%d", game->lives);
+    }
+    buf_putf(C_LABEL "  Progress " C_VALUE "%d%%", level_percent);
     if (game->popup_ticks > 0 && (game->popup_ticks / 2) % 2 == 0) {
         buf_putf("   " C_POPUP "+%d!", game->popup_value);
     }
@@ -280,7 +297,11 @@ static void render_footer(const Game *game, int left_pad)
     } else if (game->state == GAME_WON) {
         buf_put(C_GOOD "CLEAR!" C_LABEL "  all stages done. R restart / Q quit.");
     } else if (game->state == GAME_OVER) {
-        buf_put(C_GHOST "GAME OVER" C_LABEL "  R restart / Q quit.");
+        if (game->mode == MODE_TIMEATTACK) {
+            buf_put(C_WARN "TIME UP!" C_LABEL "  R restart / Q quit.");
+        } else {
+            buf_put(C_GHOST "GAME OVER" C_LABEL "  R restart / Q quit.");
+        }
     } else if (game->state == GAME_QUIT) {
         buf_put(C_LABEL "Quit requested.");
     } else if (game->stasis_ticks > 0) {
@@ -377,19 +398,44 @@ static void buf_put_banner(int left_pad)
     }
 }
 
+/* One selectable row: a label, then the options with the chosen one bracketed
+ * and the active row marked with '>'. */
+static void render_menu_row(const Game *game, const char *label, int active,
+                            int selected, int count,
+                            const char *(*name_of)(int))
+{
+    int i;
+
+    buf_putf("%s%s %-11s", active ? C_VALUE : C_LABEL, active ? ">" : " ", label);
+    for (i = 0; i < count; i++) {
+        if (i == selected) {
+            buf_putf("%s[%s] ", active ? C_GOOD : C_VALUE, name_of(i));
+        } else {
+            buf_putf(C_DIM "%s  ", name_of(i));
+        }
+    }
+    (void)game;
+}
+
+static const char *menu_mode_name(int m) { return game_mode_label(m); }
+static const char *menu_diff_name(int d) { return game_difficulty_label(d); }
+
 static void render_menu(const Game *game, int cols, int rows)
 {
-    static const char *names[3] = {"Easy", "Normal", "Hard"};
-    static const char *descs[3] = {
-        "relaxed ghosts, pulse charges fast",
-        "the standard hunt",
-        "fast, relentless ghosts"
+    static const char *mode_desc[3] = {
+        "three hand-built stages, win at the end",
+        "one life - mazes never stop, ghosts ramp up",
+        "120 seconds - rack up the highest score"
     };
     int banner_w = (int)strlen(MENU_BANNER[0]);
     int pad = (cols - banner_w) / 2;
-    int top = (rows - 16) / 2;
+    int top = (rows - 18) / 2;
     int i;
+    int sel_mode = game->menu_mode;
 
+    if (sel_mode < 0 || sel_mode >= MODE_COUNT) {
+        sel_mode = 0;
+    }
     if (pad < 0) {
         pad = 0;
     }
@@ -404,34 +450,30 @@ static void render_menu(const Game *game, int cols, int rows)
     }
 
     /* Only the very first line is padded explicitly; every later line is
-     * padded by the preceding line_break(). Padding both would double the
-     * indent and shove the menu off to the right. */
+     * padded by the preceding line_break(). */
     buf_spaces(pad);
     buf_put_banner(pad);
     line_break(pad);
     line_break(pad);
 
-    buf_put(C_LABEL "Select difficulty:");
+    render_menu_row(game, "Mode:", game->menu_field == 0, sel_mode,
+                    MODE_COUNT, menu_mode_name);
+    line_break(pad);
+    render_menu_row(game, "Difficulty:", game->menu_field == 1, game->menu_index,
+                    DIFF_HARD + 1, menu_diff_name);
     line_break(pad);
     line_break(pad);
 
-    for (i = DIFF_EASY; i <= DIFF_HARD; i++) {
-        if (i == game->menu_index) {
-            buf_putf(C_GOOD "  > %-7s " C_VALUE "%s", names[i], descs[i]);
-        } else {
-            buf_putf(C_DIM "    %-7s %s", names[i], descs[i]);
-        }
-        line_break(pad);
-    }
+    buf_putf(C_LABEL "%s", mode_desc[sel_mode]);
+    line_break(pad);
+    line_break(pad);
 
+    buf_put(C_LABEL "Up/Down switch row,  Left/Right change,  Space start,  Q quit");
     line_break(pad);
-    buf_put(C_LABEL "W/S or arrows to choose,   Space to start,   Q to quit");
     line_break(pad);
-    if (game->high_score > 0) {
-        line_break(pad);
-        buf_putf(C_LABEL "High score: " C_VALUE "%d", game->high_score);
-        line_break(pad);
-    }
+    buf_putf(C_LABEL "High score (%s): " C_VALUE "%d",
+             game_mode_label(sel_mode), game->high_scores[sel_mode]);
+    line_break(pad);
 
     buf_put(C_RESET "\x1b[J");
 }
