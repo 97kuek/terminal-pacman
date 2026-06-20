@@ -311,6 +311,72 @@ static const char *MENU_BANNER[5] = {
     "|_|  /_/   \\_\\____| |_|  |_/_/   \\_\\_| \\_|"
 };
 
+/* Horizontal 3-stop gradient (blue -> purple -> pink), like the gradient
+ * wordmarks in Claude Code / Gemini CLI. t runs 0..1 across the banner. */
+static void gradient_rgb(double t, int *r, int *g, int *b)
+{
+    static const int stop[3][3] = {
+        { 80, 160, 255 }, { 150, 110, 230 }, { 235, 110, 160 }
+    };
+    int i;
+    double seg;
+
+    if (t < 0.0) {
+        t = 0.0;
+    }
+    if (t > 1.0) {
+        t = 1.0;
+    }
+    if (t < 0.5) {
+        i = 0;
+        seg = t / 0.5;
+    } else {
+        i = 1;
+        seg = (t - 0.5) / 0.5;
+    }
+    *r = (int)(stop[i][0] + (stop[i + 1][0] - stop[i][0]) * seg);
+    *g = (int)(stop[i][1] + (stop[i + 1][1] - stop[i][1]) * seg);
+    *b = (int)(stop[i][2] + (stop[i + 1][2] - stop[i][2]) * seg);
+}
+
+/* Emit the banner with a per-column truecolor gradient. The caller pads the
+ * first row; each later row is padded here via line_break(). */
+static void buf_put_banner(int left_pad)
+{
+    int width = (int)strlen(MENU_BANNER[0]);
+    int row;
+    int col;
+
+    for (row = 0; row < 5; row++) {
+        const char *line = MENU_BANNER[row];
+        int len = (int)strlen(line);
+
+        if (row > 0) {
+            line_break(left_pad);
+        }
+        for (col = 0; col < len; col++) {
+            char ch[2];
+
+            if (line[col] == ' ') {
+                buf_put(" ");
+                continue;
+            }
+            {
+                int r;
+                int g;
+                int b;
+                double t = width > 1 ? (double)col / (width - 1) : 0.0;
+
+                gradient_rgb(t, &r, &g, &b);
+                buf_putf("\x1b[1;38;2;%d;%d;%dm", r, g, b);
+            }
+            ch[0] = line[col];
+            ch[1] = '\0';
+            buf_put(ch);
+        }
+    }
+}
+
 static void render_menu(const Game *game, int cols, int rows)
 {
     static const char *names[3] = {"Easy", "Normal", "Hard"};
@@ -341,11 +407,8 @@ static void render_menu(const Game *game, int cols, int rows)
      * padded by the preceding line_break(). Padding both would double the
      * indent and shove the menu off to the right. */
     buf_spaces(pad);
-    for (i = 0; i < 5; i++) {
-        buf_put(C_TITLE);
-        buf_put(MENU_BANNER[i]);
-        line_break(pad);
-    }
+    buf_put_banner(pad);
+    line_break(pad);
     line_break(pad);
 
     buf_put(C_LABEL "Select difficulty:");
