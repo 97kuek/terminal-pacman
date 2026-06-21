@@ -7,6 +7,8 @@
 #include "pathfind.h"
 #include "maze.h"
 #include "qghost.h"
+#include "qfeatures.h"
+#include "qtable_data.h" /* offline-trained warm-start table (tools/qsim.c) */
 
 /* One Endless ghost learns the player's habits online across a run. */
 static QGhost g_qghost;
@@ -994,7 +996,8 @@ static int ghost_speed(const Game *game, const Actor *ghost)
 
 /* --- Online Q-learning ghost (Endless only) ----------------------------- */
 
-static const Direction ACTION_DIR[QGHOST_ACTIONS] = {
+/* Action index (qfeatures order) -> Direction, for setting ghost->dir. */
+static const Direction ACTION_DIR[QFEAT_ACTIONS] = {
     DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT
 };
 
@@ -1004,71 +1007,38 @@ static int is_learner_ghost(const Game *game, const Actor *ghost)
     return game->mode == MODE_ENDLESS && ghost == &game->ghosts[0];
 }
 
-static int q_bucket(int d)
-{
-    if (d < -3) {
-        return 0;
-    }
-    if (d < 0) {
-        return 1;
-    }
-    if (d == 0) {
-        return 2;
-    }
-    if (d <= 3) {
-        return 3;
-    }
-    return 4;
-}
-
-/* State = (player offset quadrant/magnitude) x (player's heading). Encoding the
- * player's direction lets the ghost learn the player's movement habits. */
 static int q_state(const Game *game, const Actor *ghost)
 {
-    int dxb = q_bucket(game->player.pos.x - ghost->pos.x);
-    int dyb = q_bucket(game->player.pos.y - ghost->pos.y);
-
-    return (dxb * 5 + dyb) * 5 + (int)game->player.dir; /* < 125 < QGHOST_STATES */
-}
-
-static void q_valid(const Game *game, Position pos, unsigned char valid[QGHOST_ACTIONS])
-{
-    int a;
-
-    for (a = 0; a < QGHOST_ACTIONS; a++) {
-        Position next = wrap_position(step_position(pos, ACTION_DIR[a]));
-        valid[a] = (unsigned char)(is_wall(game, next) ? 0 : 1);
-    }
+    return qfeat_state(ghost->pos.x, ghost->pos.y,
+                       game->player.pos.x, game->player.pos.y,
+                       (int)game->player.dir);
 }
 
 static void move_learner_ghost(Game *game, Actor *ghost)
 {
-    unsigned char valid[QGHOST_ACTIONS];
-    unsigned char valid2[QGHOST_ACTIONS];
+    unsigned char valid[QFEAT_ACTIONS];
+    unsigned char valid2[QFEAT_ACTIONS];
     int state = q_state(game, ghost);
+    Position old_pos = ghost->pos;
     int action;
-    int old_dist;
-    int new_dist;
     Direction dir;
 
-    q_valid(game, ghost->pos, valid);
+    qfeat_valid(&game->map[0][0], MAP_WIDTH + 1, MAP_WIDTH, MAP_HEIGHT,
+                ghost->pos.x, ghost->pos.y, valid);
     action = qghost_select(&g_qghost, state, valid);
     dir = (action >= 0) ? ACTION_DIR[action] : random_valid_direction(game, ghost);
 
-    old_dist = manhattan(ghost->pos, game->player.pos);
     ghost->dir = dir;
     if (dir != DIR_NONE) {
         ghost->pos = wrap_position(step_position(ghost->pos, dir));
     }
-    new_dist = manhattan(ghost->pos, game->player.pos);
 
     if (action >= 0) {
-        float reward = (float)(old_dist - new_dist); /* reward closing in */
+        float reward = qfeat_reward(old_pos.x, old_pos.y, ghost->pos.x, ghost->pos.y,
+                                    game->player.pos.x, game->player.pos.y);
 
-        if (actors_overlap(ghost->pos, game->player.pos)) {
-            reward += 5.0f;
-        }
-        q_valid(game, ghost->pos, valid2);
+        qfeat_valid(&game->map[0][0], MAP_WIDTH + 1, MAP_WIDTH, MAP_HEIGHT,
+                    ghost->pos.x, ghost->pos.y, valid2);
         qghost_update(&g_qghost, state, action, reward,
                       q_state(game, ghost), valid2);
     }
@@ -1116,7 +1086,11 @@ static void start_new_game(Game *game)
     game->high_score = game->high_scores[game->mode];
 
     if (game->mode == MODE_ENDLESS) {
-        qghost_init(&g_qghost, game->maze_seed | 1u); /* fresh learner per run */
+        /* Warm-start from the offline-trained table so the learner chases
+         * competently from the first maze instead of exploring randomly, then
+         * keeps adapting online to the actual player. */
+        qghost_init(&g_qghost, game->maze_seed | 1u);
+        memcpy(g_qghost.q, QTABLE_PRETRAINED, sizeof(g_qghost.q));
     }
 
     if (game->mode == MODE_CLASSIC) {

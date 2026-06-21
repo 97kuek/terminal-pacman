@@ -9,6 +9,7 @@ $sources = @(
     "src/pathfind.c",
     "src/maze.c",
     "src/qghost.c",
+    "src/qfeatures.c",
     "src/platform_win.c"
 )
 
