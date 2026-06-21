@@ -9,5 +9,12 @@ terminal-pacman.score
 # Editor and OS files
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
+
+# Local scratch (codex logs, frame captures, generated includes)
+codex_*.log
+codex_task.txt
+*.bin
+tools/builtin_levels.inc
