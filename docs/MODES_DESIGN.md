@@ -23,6 +23,7 @@
 ## アーキテクチャ
 
 ### 新規モジュール `src/maze.{h,c}`（codex 担当）
+
 `tools/gen_levels.py` のロジック（格子＋シード付きカービング＋トンネル＋スポーン＋BFS 連結検証）を C へ移植。ゲーム型に非依存。
 
 ```c
@@ -42,6 +43,7 @@ int maze_generate(char *out, int stride, int width, int height,
 ```
 
 ### ゲーム側（Claude 担当）
+
 - `GameMode { MODE_CLASSIC, MODE_ENDLESS, MODE_TIMEATTACK }`。
 - `Game` 追加: `mode`, `time_left`, `maze_seed`, `mazes_cleared`, `high_scores[3]`, メニュー用 `menu_field`/`menu_mode`。
 - レベル供給の分岐: Classic は既存 `load_level`、Endless/TimeAttack は `maze_generate` を呼ぶ新 `load_generated_level`。
@@ -56,11 +58,13 @@ int maze_generate(char *out, int stride, int width, int height,
 - **P3（任意）**: オフライン RL・モード別リーダーボード・スプリント型タイムアタック。
 
 ## 学習（P2）に関する設計メモ
+
 - A* が追跡を最適化済みのため、Q 学習の価値は「プレイヤーの癖の先読み」。
 - 状態（粗く）: ゴーストから見たプレイヤーの相対象限・プレイヤー進行方向・近傍の分岐。行動: 交差点での進行方向。
 - 報酬: 「プレイヤーへの距離短縮 −（理不尽化を避けるため）過度な張り付きにペナルティ」。純 C の表型 Q で 1 プレイ内学習。
 - 学習はオプトイン（Endless のみ）。Classic/TimeAttack は決定的 AI を維持。
 
 ## codex との分担
+
 - **codex**: `src/maze.h` / `src/maze.c`（上記 API）。`build.ps1` / `Makefile` への追加はせず Claude 側で行う。テストは `tests/` に追加（後続）。
 - **Claude**: `game.*` / `main.c` / `render.c` / ビルド配線 / メニュー / スコア / モード分岐。
