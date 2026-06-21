@@ -40,7 +40,7 @@ make
 - 外部ライブラリは、必要性が明確になるまで追加しない。
 - OS 依存処理（入力・VT初期化・描画出力・端末サイズ・サウンド・スリープ）は `src/platform.h` の API に閉じ込める。
 - ゲームルールは `src/game.c` に寄せ、描画処理と混ぜない。
-- 敵の経路探索は `src/pathfind.c`（A*）に分離する。
+- 敵の経路探索は `src/pathfind.c`（A*）に分離する。Q 学習のコアは `src/qghost.c`、状態符号化・報酬は `src/qfeatures.c`（ゲームとオフライン学習ツール `tools/qsim.c` で共有）。敵 AI を変えるときは [docs/AI_DESIGN.md](docs/AI_DESIGN.md) を更新する。
 - 描画は `src/render.c` に寄せる。表示は ASCII グリフ + ANSI カラーを使う。
 - 迷路を変えるときは `levels/*.txt` と `src/game.c` の内蔵配列を `tools/gen_levels.py` で生成して同期させる（連結性はジェネレータが検証）。
 - 関数は短く保ち、状態変更の責務を分ける。
