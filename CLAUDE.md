@@ -51,14 +51,18 @@ CI（`.github/workflows/ci.yml`）が push / PR ごとに Windows / Linux / macO
 | `src/game.h` / `src/game.c` | ゲーム状態と全ルール（移動・衝突・スコア・敵AI・ウェーブ・チャージ等）。`MAP_WIDTH` / `MAP_HEIGHT` / `GHOST_COUNT` もここ |
 | `src/pathfind.h` / `src/pathfind.c` | 敵追跡用の A* 経路探索（`astar_next`）。汎用グリッド関数でゲーム型に非依存。**最大 64x32 セル** |
 | `src/maze.h` / `src/maze.c` | 迷路ジェネレータ（`gen_levels.py` の C 移植、連結性検証つき）。Endless / Time Attack のランタイム生成に使用 |
-| `src/qghost.h` / `src/qghost.c` | 表型オンライン Q 学習コア。Endless の学習ゴースト（ghost 0、マゼンタ表示）が使用。状態符号化と統合は `game.c` |
+| `src/qghost.h` / `src/qghost.c` | 表型オンライン Q 学習コア（ε-greedy・Q 更新）。Endless の学習ゴースト（ghost 0、マゼンタ表示）が使用 |
+| `src/qfeatures.h` / `src/qfeatures.c` | 学習器の状態符号化・合法判定・報酬（ゲームとオフライン学習ツールで共有） |
+| `src/qtable_data.h` | `tools/qsim.c` が書き出す学習済み Q テーブル。Endless 開始時にウォームスタートで読み込む |
 | `src/render.h` / `src/render.c` | 1 フレームを 1 バッファに組み立て、ANSI カラー・横2倍スケール・中央寄せして `platform_present` で一括出力 |
 | `src/platform.h` | 端末/OS API の境界（入力・VT初期化・一括描画・端末サイズ・サウンド・スリープ） |
 | `src/platform_win.c` | Windows 実装（`_kbhit`/`_getch`、VT 有効化、`WriteConsoleA`、別スレッド `Beep`） |
 | `src/platform_unix.c` | Unix 実装（`termios`/`select`、ANSI、`write`、端末ベル） |
 | `levels/stage*.txt` | ステージ定義（読み込み優先、失敗時は `game.c` の内蔵配列にフォールバック）。左右端の開口がワープトンネル |
 | `tools/gen_levels.py` | 迷路ジェネレータ（連結性検証＋トンネル開口つき）。`levels/*.txt` と内蔵配列を生成 |
-| `tests/test_game.c` | 単体テスト（A* と純粋ロジック）。`platform_play` をスタブして game.c + pathfind.c をリンク |
+| `tools/qsim.c` | 学習器のオフライン学習・評価（`make qsim`）。捕獲率を計測し `src/qtable_data.h` を出力 |
+| `tools/gen_banner.py` | メニューの ASCII バナーを等幅で組み立て（`render.c` の `MENU_BANNER`） |
+| `tests/test_game.c` | 単体テスト（A*・迷路生成・Q 学習・モード・純粋ロジック）。`platform_play` をスタブしてリンク |
 | `build_tests.ps1` / `Makefile (test)` | テストのビルド・実行 |
 | `.github/workflows/ci.yml` | Windows / Linux / macOS の CI |
 
