@@ -1,6 +1,7 @@
 # terminal-pacman
 
 > 外部ライブラリに依存しないC言語製の、ターミナル上で動くパックマン風ゲーム
+> 
 > Windows / Linux / macOS で動作
 
 ![プレイ動画](assets/プレイ動画.gif)
@@ -8,7 +9,7 @@
 ## 特徴
 
 - **3 モード**: Classic / Endless / Time Attack
-- **敵 AI**: A\* 経路探索＋4 種の性格（直線追跡・待ち伏せ・挟み込み・臆病）、散開／追跡ウェーブ、終盤加速。Endless では 1 体が**オンライン Q 学習**で適応（[docs/enemy-ai.md](docs/enemy-ai.md)）。
+- **敵 AI**: A\* 経路探索＋4種の性格（直線追跡・待ち伏せ・挟み込み・臆病）、散開／追跡ウェーブ、終盤加速。Endless では 1 体が**オンライン Q 学習**で適応（[docs/enemy-ai.md](docs/enemy-ai.md)）。
 - **新規性**: スタシス・パルス（ペレットでチャージ→敵を一時凍結）、ワープトンネル、連続捕食ボーナス、ボーナスフルーツ
 
 ## ドキュメント
@@ -79,7 +80,7 @@ make
 
 - **ゲームルールは描画・端末から独立**（`game.c`）
 - **OS 依存は `platform.h` の裏に閉じ込め**、クロスプラットフォーム性を保つ
-- 敵 AI のアルゴリズムは [docs/AI_DESIGN.md](docs/AI_DESIGN.md) を参照
+- 敵 AI のアルゴリズムは [docs/enemy-ai.md](docs/enemy-ai.md) を参照
 
 ## ライセンス
 
