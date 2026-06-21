@@ -79,7 +79,7 @@ CI（`.github/workflows/ci.yml`）が push / PR ごとに Windows / Linux / macO
 - ステージクリアボーナス（残ライフ依存）。
 - 効果音: 外部ライブラリ非依存（Windows は別スレッド `Beep`、Unix は端末ベル）。`--no-sound` / `--mono` で無効化可。
 
-設計判断の詳細は [docs/AI_DESIGN.md](docs/AI_DESIGN.md)、仕様は [SPEC.md](SPEC.md)、改善優先度は [docs/ROADMAP.md](docs/ROADMAP.md)。
+設計判断の詳細は [docs/enemy-ai.md](docs/eneymy-ai.md)、仕様は [SPEC.md](SPEC.md)
 
 ## レベル（迷路）を変更するときの手順
 
