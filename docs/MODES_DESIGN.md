@@ -51,8 +51,8 @@ int maze_generate(char *out, int stride, int width, int height,
 
 ## フェーズ
 
-- **P1（今回）**: モード選択 UI・Classic/Endless/TimeAttack の枠組み・`src/maze.*`（codex）・モード別ハイスコア・難易度併存。学習はまだ入れず、Endless はスクリプト式ランプ。
-- **P2**: オンライン Q 学習のゴースト・アドバイザ（`src/qghost.*`）。`move_ghost` に “学習モデルが目標を補正する” seam を P1 で用意しておく。
+- **P1（完了）**: モード選択 UI・Classic/Endless/TimeAttack の枠組み・`src/maze.*`（codex）・モード別ハイスコア・難易度併存。Endless はスクリプト式ランプ。
+- **P2（完了）**: オンライン Q 学習ゴースト（`src/qghost.*`、codex）。Endless の ghost 0 が学習者として A* の代わりに Q 方策で動く（マゼンタ表示）。
 - **P3（任意）**: オフライン RL・モード別リーダーボード・スプリント型タイムアタック。
 
 ## 学習（P2）に関する設計メモ

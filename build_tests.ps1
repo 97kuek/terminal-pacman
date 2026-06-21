@@ -6,7 +6,8 @@ $sources = @(
     "tests/test_game.c",
     "src/game.c",
     "src/pathfind.c",
-    "src/maze.c"
+    "src/maze.c",
+    "src/qghost.c"
 )
 
 if (-not (Test-Path $buildDir)) {
